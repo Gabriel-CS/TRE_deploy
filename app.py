@@ -231,7 +231,7 @@ def _download_and_extract_data():
     if not os.path.exists(data_dir):
         with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
             # INSIRA O SEU ID DO GOOGLE DRIVE AQUI
-            file_id = "COLOQUE_AQUI_O_ID_DO_SEU_ARQUIVO_DATA_ZIP"
+            file_id = "1_JNX4jD84-Cc3fqbdDCp56zKRtT3niBc"
             url = f"https://drive.google.com/uc?id={file_id}"
             output_zip = "data.zip"
 
