@@ -3,6 +3,8 @@ import os
 
 import pandas as pd
 import streamlit as st
+import zipfile  
+import gdown    
 
 from src.analysis import (
     GRUPOS_ETARIOS,
@@ -217,6 +219,35 @@ st.markdown("""
 # ═══════════════════════════════════════════════════════════════════════════════
 # CACHE DE DADOS — ESTRATÉGIA DE MEMÓRIA (apenas CSVs leves por filtro)
 # ═══════════════════════════════════════════════════════════════════════════════
+@st.cache_resource(show_spinner=False)
+def _download_and_extract_data():
+    """
+    Verifica se a pasta de dados existe. Caso contrário, baixa do Google Drive 
+    e extrai localmente. Isso evita estourar o Git LFS e mantém a velocidade de leitura.
+    """
+    data_dir = "data"
+    
+    # Se a pasta 'data' já existir e tiver arquivos, o ambiente já foi configurado
+    if not os.path.exists(data_dir):
+        with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
+            # INSIRA O SEU ID DO GOOGLE DRIVE AQUI
+            file_id = "COLOQUE_AQUI_O_ID_DO_SEU_ARQUIVO_DATA_ZIP"
+            url = f"https://drive.google.com/uc?id={file_id}"
+            output_zip = "data.zip"
+
+            # Faz o download do arquivo
+            gdown.download(url, output_zip, quiet=False)
+
+            # Extrai mantendo a hierarquia original (data/output/...)
+            with zipfile.ZipFile(output_zip, 'r') as zip_ref:
+                zip_ref.extractall(".")
+
+            # Limpa o arquivo compactado para liberar disco e RAM no contêiner
+            os.remove(output_zip)
+
+# Invoca a função imediatamente para garantir que o ambiente local esteja pronto 
+# antes que os dicionários de rotas e as funções pd.read_csv tentem acessar os caminhos.
+_download_and_extract_data()
 
 @st.cache_data(show_spinner=False, max_entries=2, ttl=300)
 def _load_csv_cached(path: str) -> pd.DataFrame:
