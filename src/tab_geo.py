@@ -25,6 +25,9 @@ _COR_STATUS: dict[int, str] = {
     4: "#EF4444",  # vermelho  — super crítica
 }
 
+# Cor dos pontos não críticos (seções sem atraso — dataset consolidado)
+_COR_NAO_CRITICO: str = "#94A3B8"  # slate-400 — neutro/cinza
+
 _STATUS_OPCOES: dict[str, int | None] = {
     "Todas as críticas": None,
     "0 — Sem Atraso":    0,
@@ -71,6 +74,12 @@ def _carregar_geojson_sergipe() -> dict | None:
 @st.cache_data(show_spinner=False, ttl=900)
 def carregar_dados_geograficos(ano: str, status_filter: int | None) -> tuple[gpd.GeoDataFrame | None, str | None]:
     """Carrega dados geográficos particionados por ano e status."""
+    
+    # === NOVO: Redireciona o Nível 0 direto para o dataset não-crítico ===
+    if status_filter == 0:
+        return carregar_dados_nao_criticos(ano)
+
+    # O resto continua igualzinho...
     if status_filter is None or status_filter == "Todas":
         suffix = "all"
     else:
@@ -117,6 +126,66 @@ def carregar_dados_geograficos(ano: str, status_filter: int | None) -> tuple[gpd
 
     if df_valid.empty:
         return None, "Nenhum registro possui coordenadas geográficas válidas."
+
+    gdf = gpd.GeoDataFrame(
+        df_valid,
+        geometry=gpd.points_from_xy(df_valid.NR_LONGITUDE, df_valid.NR_LATITUDE),
+        crs="EPSG:4326",
+    )
+    return gdf, None
+
+
+@st.cache_data(show_spinner=False, ttl=900)
+def carregar_dados_nao_criticos(ano: str) -> tuple[gpd.GeoDataFrame | None, str | None]:
+    """Carrega o dataset consolidado de seções não críticas (STATUS=0) para o ano.
+
+    Tenta primeiro a versão comprimida, depois a CSV simples.
+    Caminho esperado: data/data_map/locais_votacao_consolidado_sc_{ano}.csv[.zip]
+    """
+    candidates = [
+        f"data/data_map/locais_votacao_consolidado_sc_{ano}.csv.zip",
+        f"data/data_map/locais_votacao_consolidado_sc_{ano}.csv",
+    ]
+    df: pd.DataFrame | None = None
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                compression = "zip" if path.endswith(".zip") else "infer"
+                df = pd.read_csv(path, compression=compression)
+                break
+            except Exception as e:
+                return None, f"Erro ao ler {path}: {e}"
+
+    if df is None:
+        return None, (
+            f"Arquivo de seções não críticas não encontrado. "
+            f"Esperado em: {candidates[0]} ou {candidates[1]}"
+        )
+
+    cols_obrigatorias = ["NR_LATITUDE", "NR_LONGITUDE", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
+    faltantes = [c for c in cols_obrigatorias if c not in df.columns]
+    if faltantes:
+        return None, f"Colunas ausentes no dataset não crítico: {', '.join(faltantes)}"
+
+    # Garante STATUS presente e igual a 0
+    if "STATUS" not in df.columns:
+        df["STATUS"] = 0
+    else:
+        df = df[df["STATUS"] == 0].copy()
+
+    df["NR_LATITUDE"]  = pd.to_numeric(df["NR_LATITUDE"],  errors="coerce")
+    df["NR_LONGITUDE"] = pd.to_numeric(df["NR_LONGITUDE"], errors="coerce")
+
+    df_valid = df.dropna(subset=["NR_LATITUDE", "NR_LONGITUDE"])
+    df_valid = df_valid[
+        (df_valid["NR_LATITUDE"]  != -1) &
+        (df_valid["NR_LONGITUDE"] != -1) &
+        (df_valid["NR_LATITUDE"].between(-90,  90)) &
+        (df_valid["NR_LONGITUDE"].between(-180, 180))
+    ].copy()
+
+    if df_valid.empty:
+        return None, "Nenhum registro não crítico possui coordenadas válidas."
 
     gdf = gpd.GeoDataFrame(
         df_valid,
@@ -329,38 +398,36 @@ def render_tab_geo(ano: str, status_filter: int | None) -> None:
     # COLUNA 1 — Filtros (Empilhados)
     # ═══════════════════════════════════════════════════════════════════════
     with col_filtros:
-        # Renderizar STATUS primeiro (ele filtra os municípios)
-        status_presentes = sorted(gdf_geo["STATUS"].dropna().unique())
-        opcoes_filtradas = {
-            k: v for k, v in _STATUS_OPCOES.items()
-            if v is None or v in status_presentes
-        }
+        # Sincroniza o selectbox local com o filtro global caso o global seja alterado
+        if "geo_last_global" not in st.session_state:
+            st.session_state["geo_last_global"] = status_filter
         
-        if status_filter is not None and status_filter in status_presentes:
-            label_default = next(
-                (k for k, v in _STATUS_OPCOES.items() if v == status_filter),
-                list(opcoes_filtradas.keys())[0]
-            )
-        else:
-            label_default = list(opcoes_filtradas.keys())[0]
+        if st.session_state["geo_last_global"] != status_filter:
+            st.session_state["geo_last_global"] = status_filter
+            label_default = next(k for k, v in _STATUS_OPCOES.items() if v == status_filter)
+            st.session_state["_geo_status_local"] = label_default
 
+        # Mostra SEMPRE todas as opções de _STATUS_OPCOES (incluindo o Nível 0)
         status_label_local = st.selectbox(
             "Status operacional",
-            list(opcoes_filtradas.keys()),
-            index=list(opcoes_filtradas.keys()).index(label_default),
+            list(_STATUS_OPCOES.keys()),
             key="_geo_status_local",
         )
-        status_filter_local = opcoes_filtradas[status_label_local]
+        status_filter_local = _STATUS_OPCOES[status_label_local]
 
-        # Filtrar dados pelo status para obter municípios válidos
-        if status_filter_local is not None:
-            gdf_geo_status = gdf_geo[gdf_geo["STATUS"] == status_filter_local].copy()
-        else:
-            gdf_geo_status = gdf_geo.copy()
+        # AGORA CARREGAMOS OS DADOS COM BASE NO FILTRO LOCAL
+        gdf_geo_status, erro_geo = carregar_dados_geograficos(ano, status_filter_local)
 
+    # Verifica possíveis erros após carregar
+    if erro_geo:
+        st.warning(f"Dados geográficos indisponíveis: {erro_geo}")
+        st.info("Para habilitar o mapa, certifique-se de que os arquivos existam...")
+        return
+
+    with col_filtros:
+        # A lista de municípios renderiza com base nos dados que acabaram de carregar
         municipios_disponiveis = sorted(gdf_geo_status["NM_MUNICIPIO"].dropna().unique())
 
-        # Renderizar MUNICÍPIOS logo abaixo
         prev_sel = st.session_state.get("_geo_muni_main", [])
         valid_prev = [m for m in prev_sel if m in municipios_disponiveis]
 
@@ -387,34 +454,8 @@ def render_tab_geo(ano: str, status_filter: int | None) -> None:
         return
 
     # ═══════════════════════════════════════════════════════════════════════
-    # COLUNA 2 — KPIs (Alinhados no centro horizontal)
-    # ═══════════════════════════════════════════════════════════════════════
-    with col_kpis:
-        # Margin-top para empurrar as boxes e alinhar com o centro dos filtros
-        st.markdown("<div style='margin-top: 1.8rem;'></div>", unsafe_allow_html=True)
-        
-        if status_filter_local is None:
-            counts = gdf_map["STATUS"].value_counts().sort_index()
-            cards_html = "".join(
-                _kpi_card(
-                    _COR_STATUS.get(int(s), "#6c757d"),
-                    _STATUS_LABELS.get(int(s), f"Nível {int(s)}"),
-                    int(q)
-                )
-                for s, q in counts.items()
-            )
-            st.markdown(
-                f'<div style="display:flex;gap:6px;align-items:stretch;">{cards_html}</div>',
-                unsafe_allow_html=True
-            )
-        else:
-            cor = _COR_STATUS.get(int(status_filter_local), "#6c757d")
-            label = _STATUS_LABELS.get(int(status_filter_local), f"Nível {status_filter_local}")
-            qtd = len(gdf_map)
-            st.markdown(_kpi_card(cor, label, qtd), unsafe_allow_html=True)
-
-    # ═══════════════════════════════════════════════════════════════════════
     # COLUNA 3 — Configurações do Mapa
+    # (Executamos a lógica de UI antes para instanciar as variáveis de estado)
     # ═══════════════════════════════════════════════════════════════════════
     with col_config:
         st.markdown("""
@@ -441,6 +482,51 @@ def render_tab_geo(ano: str, status_filter: int | None) -> None:
             value=False,
             key="_geo_voronoi_toggle",
             help="Divide o mapa em células de influência ao redor de cada local de votação.",
+        )
+        
+        # Variável instanciada com sucesso antes do seu uso na regra de negócio
+        exibir_nao_criticos = (status_filter_local == 0)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # COLUNA 2 — KPIs (Alinhados no centro horizontal)
+    # ═══════════════════════════════════════════════════════════════════════
+    # Carrega dataset não crítico se o toggle estiver ativo
+    gdf_nao_criticos: gpd.GeoDataFrame | None = None
+    
+    # Agora a variável exibir_nao_criticos já existe neste escopo
+    if exibir_nao_criticos:
+        gdf_nc, erro_nc = carregar_dados_nao_criticos(ano)
+        if erro_nc:
+            st.warning(f"Pontos não críticos indisponíveis: {erro_nc}")
+        else:
+            # Filtra por municípios selecionados, se houver seleção
+            if selected_munis:
+                gdf_nao_criticos = gdf_nc[gdf_nc["NM_MUNICIPIO"].isin(selected_munis)].copy()
+            else:
+                gdf_nao_criticos = gdf_nc
+
+    with col_kpis:
+        st.markdown("<div style='margin-top: 1.8rem;'></div>", unsafe_allow_html=True)
+        
+        if status_filter_local is None:
+            counts = gdf_map["STATUS"].value_counts().sort_index()
+            cards_html = "".join(
+                _kpi_card(
+                    _COR_STATUS.get(int(s), "#6c757d"),
+                    _STATUS_LABELS.get(int(s), f"Nível {int(s)}"),
+                    int(q)
+                )
+                for s, q in counts.items()
+            )
+        else:
+            cor = _COR_STATUS.get(int(status_filter_local), "#6c757d")
+            label = _STATUS_LABELS.get(int(status_filter_local), f"Nível {status_filter_local}")
+            qtd = len(gdf_map)
+            cards_html = _kpi_card(cor, label, qtd)
+
+        st.markdown(
+            f'<div style="display:flex;gap:6px;align-items:stretch;">{cards_html}</div>',
+            unsafe_allow_html=True
         )
 
     st.markdown("<div style='height: 1.0rem;'></div>", unsafe_allow_html=True)
@@ -519,14 +605,16 @@ def render_tab_geo(ano: str, status_filter: int | None) -> None:
         label_principal = _STATUS_LABELS.get(status_maximo, f"Status {status_maximo}")
         qtd_secoes = len(df_local)
 
+        # === NOVO: Ajuste dinâmico do texto para não chamar nível 0 de crítico ===
+        texto_secoes = "seções críticas" if status_maximo > 0 else "seções sem atraso"
+
         # 3. Construir HTML do Cabeçalho Fixo (Sticky)
-        # max-height e overflow-y criam uma barra de rolagem nativa se houver muitas seções no mesmo local
         popup_html = f"""
             <div style="font-family:'Inter',sans-serif; min-width:240px; max-width:280px; max-height:300px; overflow-y:auto; overflow-x:hidden; padding-right:4px;">
                 <div style="background-color:rgba(255,255,255,0.95); position:sticky; top:0; z-index:999; padding-bottom:4px; margin-bottom:8px;">
                     <div style="background:{cor_principal}12; border-left:3px solid {cor_principal}; padding:6px 8px; border-radius:0 4px 4px 0;">
                         <div style="font-size:0.9rem; font-weight:700; color:#0f172a; margin-bottom:2px; line-height:1.2;">{local}</div>
-                        <div style="font-size:0.75rem; color:#64748b;">{municipio} • <b>{qtd_secoes}</b> seções críticas</div>
+                        <div style="font-size:0.75rem; color:#64748b;">{municipio} • <b>{qtd_secoes}</b> {texto_secoes}</div>
                     </div>
                 </div>
         """
@@ -574,6 +662,69 @@ def render_tab_geo(ano: str, status_filter: int | None) -> None:
             fillOpacity=0.85,
             weight=1.5,
         ).add_to(container_marcadores)
+
+    # ── Camada 4: Pontos Não Críticos (opcional) ─────────────────────────────
+    if gdf_nao_criticos is not None and not gdf_nao_criticos.empty:
+        if agrupar_pontos:
+            container_nc = MarkerCluster(
+                name="Seções Não Críticas", overlay=True, control=True,
+            ).add_to(m)
+        else:
+            container_nc = folium.FeatureGroup(
+                name="Seções Não Críticas", overlay=True, control=True,
+            ).add_to(m)
+
+        cols_nc = ["NR_LATITUDE", "NR_LONGITUDE", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
+        grupos_nc = gdf_nao_criticos.groupby(cols_nc)
+
+        for (lat, lon, local, municipio), df_nc_local in grupos_nc:
+            qtd_nc = len(df_nc_local)
+
+            # Popup compacto para não críticos
+            secoes_itens = ""
+            for _, row in df_nc_local.iterrows():
+                zona_val  = int(row["NR_ZONA"])  if "NR_ZONA"  in row.index and pd.notna(row["NR_ZONA"])  else "—"
+                secao_val = int(row["NR_SECAO"]) if "NR_SECAO" in row.index and pd.notna(row["NR_SECAO"]) else "—"
+                modelo_val = str(row["modelo"]) if "modelo" in row.index and pd.notna(row["modelo"]) else "—"
+                secoes_itens += (
+                    f'<div style="border:1px solid #e2e8f0;border-radius:6px;padding:5px 7px;'
+                    f'margin-bottom:5px;background:#f8fafc;">'
+                    f'<span style="font-size:0.75rem;font-weight:700;color:#334155;">'
+                    f'Zona: {zona_val} | Seç: {secao_val}</span>'
+                    f'<div style="font-size:0.7rem;color:#64748b;margin-top:2px;">'
+                    f'<b>Modelo:</b> {modelo_val}</div>'
+                    f'</div>'
+                )
+
+            popup_nc_html = (
+                f'<div style="font-family:\'Inter\',sans-serif;min-width:220px;max-width:260px;'
+                f'max-height:280px;overflow-y:auto;overflow-x:hidden;padding-right:4px;">'
+                f'<div style="background:{_COR_NAO_CRITICO}18;border-left:3px solid {_COR_NAO_CRITICO};'
+                f'padding:6px 8px;border-radius:0 4px 4px 0;margin-bottom:8px;">'
+                f'<div style="font-size:0.9rem;font-weight:700;color:#0f172a;line-height:1.2;">{local}</div>'
+                f'<div style="font-size:0.75rem;color:#64748b;">'
+                f'{municipio} • <b>{qtd_nc}</b> seção(ões) sem atraso</div>'
+                f'</div>'
+                f'{secoes_itens}'
+                f'</div>'
+            )
+
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=4,
+                popup=folium.Popup(popup_nc_html, max_width=280),
+                tooltip=folium.Tooltip(
+                    f"<b>{local}</b><br>"
+                    f"<span style='color:{_COR_NAO_CRITICO};font-weight:500;'>Sem Atraso</span><br>"
+                    f"<span style='font-size:0.75rem;color:#64748b;'>{qtd_nc} seção(ões)</span>",
+                    sticky=False,
+                ),
+                color=_COR_NAO_CRITICO,
+                fill=True,
+                fillColor=_COR_NAO_CRITICO,
+                fillOpacity=0.55,
+                weight=1.0,
+            ).add_to(container_nc)
 
     folium.LayerControl(collapsed=True).add_to(m)
 
