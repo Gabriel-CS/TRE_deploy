@@ -1,10 +1,10 @@
 import gc
 import os
+import zipfile
 
+import gdown
 import pandas as pd
 import streamlit as st
-import zipfile  
-import gdown    
 
 from src.analysis import (
     GRUPOS_ETARIOS,
@@ -109,10 +109,7 @@ st.markdown("""
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 14px;
-            
-            /* ALTERAÇÃO: Aumente o primeiro valor para esticar em Y (ex: de 1.25rem para 2.1rem) */
-            padding: 2.1rem 1rem; 
-            
+            padding: 2.1rem 1rem;
             text-align: center;
             box-shadow: 0 1px 4px rgba(15,23,42,0.05), 0 4px 16px rgba(15,23,42,0.04);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -222,11 +219,11 @@ st.markdown("""
 @st.cache_resource(show_spinner=False)
 def _download_and_extract_data():
     """
-    Verifica se a pasta de dados existe. Caso contrário, baixa do Google Drive 
+    Verifica se a pasta de dados existe. Caso contrário, baixa do Google Drive
     e extrai localmente. Isso evita estourar o Git LFS e mantém a velocidade de leitura.
     """
     data_dir = "data"
-    
+
     # Se a pasta 'data' já existir e tiver arquivos, o ambiente já foi configurado
     if not os.path.exists(data_dir):
         with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
@@ -245,15 +242,15 @@ def _download_and_extract_data():
             # Limpa o arquivo compactado para liberar disco e RAM no contêiner
             os.remove(output_zip)
 
-# Invoca a função imediatamente para garantir que o ambiente local esteja pronto 
+
+# Invoca a função imediatamente para garantir que o ambiente local esteja pronto
 # antes que os dicionários de rotas e as funções pd.read_csv tentem acessar os caminhos.
 _download_and_extract_data()
+
 
 @st.cache_data(show_spinner=False, max_entries=2, ttl=300)
 def _load_csv_cached(path: str) -> pd.DataFrame:
     """Carrega CSV particionado tentando vírgula e ponto-e-vírgula como separadores."""
-    import os
-
     # Primeiro tenta com vírgula (padrão)
     try:
         df = pd.read_csv(path, sep=",", encoding="utf-8")
@@ -340,7 +337,7 @@ with col_filtros:
         }
         status_label = st.selectbox("Status operacional", list(status_opcoes.keys()))
         status_filter = status_opcoes[status_label]
-        
+
     with col_btn:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
         import streamlit.components.v1 as _components
@@ -355,7 +352,6 @@ with col_filtros:
 
         _items_html = ""
         for lvl, label in STATUS_LABELS.items():
-            # CORREÇÃO: Ordem de extração corrigida! (desc, cor, icone, intervalo)
             desc, cor, icon, intervalo = _STATUS_DESC[lvl]
             _items_html += (
                 f'<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:9px;">'
@@ -394,7 +390,7 @@ with col_filtros:
           var btn = document.getElementById('btn');
           var timer = null;
           var pDoc = window.parent.document;
-          
+
           var oldPanel = pDoc.getElementById('crit-panel-legend');
           if(oldPanel) oldPanel.remove();
 
@@ -410,12 +406,11 @@ with col_filtros:
                 transition:width 3s linear;"></div>
             </div>`;
 
-          // 1. DIMENSÕES: Largura ampliada e padding reduzido para encaixe
           Object.assign(panel.style, {{
-            position:'fixed', zIndex:'2147483647', background:'#fff', border:'1px solid #e2e8f0', 
-            borderRadius:'12px', 
-            padding:'12px 18px 10px', 
-            width:'380px', 
+            position:'fixed', zIndex:'2147483647', background:'#fff', border:'1px solid #e2e8f0',
+            borderRadius:'12px',
+            padding:'12px 18px 10px',
+            width:'380px',
             boxShadow:'0 12px 40px rgba(15,23,42,0.18)', fontFamily:'Inter,sans-serif',
             opacity:'0', transform:'translateY(-8px)',
             transition:'opacity .28s ease, transform .28s ease',
@@ -429,20 +424,17 @@ with col_filtros:
             var frame = window.frameElement;
             var fr    = frame.getBoundingClientRect();
             var br    = btn.getBoundingClientRect();
-            
+
             panel.style.display = 'block';
-            
-            // 2. POSICIONAMENTO: 
-            // Left: afasta um pouco do botão para a direita
-            // Top: Subtrai ~75px para alinhar o topo da caixa com o input de "Ano Eleitoral"
-            panel.style.left    = (fr.left + br.left + 50) + 'px'; 
+            panel.style.left    = (fr.left + br.left + 50) + 'px';
             panel.style.top     = (fr.top  + br.top - 75) + 'px';
 
-            panel.getBoundingClientRect(); 
+            panel.getBoundingClientRect();
             panel.style.opacity       = '1';
             panel.style.transform     = 'translateY(0)';
             panel.style.pointerEvents = 'auto';
 
+            // Barra de progresso animada (auto-fechar em 3s)
             fill.style.transition = 'none';
             fill.style.width      = '100%';
             requestAnimationFrame(function() {{
@@ -463,7 +455,17 @@ with col_filtros:
             setTimeout(function() {{ panel.style.display = 'none'; }}, 280);
           }}
 
-          btn.addEventListener('click', function() {{
+          // Fechar ao clicar fora do painel
+          pDoc.addEventListener('mousedown', function(e) {{
+            if (panel.style.opacity === '1' && !panel.contains(e.target)) {{
+              clearTimeout(timer);
+              hidePanel();
+            }}
+          }});
+
+          btn.addEventListener('click', function(e) {{
+            e.preventDefault();
+            e.stopPropagation();
             if (panel.style.display === 'none' || panel.style.opacity === '0') {{
               showPanel();
             }} else {{
@@ -485,11 +487,18 @@ for path_check, label in [(nivel_path, "Níveis"), (modelo_path, "Modelos")]:
         st.stop()
 
 with st.spinner("Carregando dados..."):
-    df_secoes = _load_csv_cached(nivel_path)
+    df_secoes    = _load_csv_cached(nivel_path)
     df_voter_log = _load_csv_cached(modelo_path)
 
-    n_all_path   = cfg["niveis"][_nivel_key(None)]
-    total_secoes_global = _count_rows(n_all_path) if os.path.exists(n_all_path) else 0
+    n_all_path = cfg["niveis"]["todas as criticas"]
+    n_0_path   = cfg["niveis"][0]
+
+    # Conta as linhas separadamente (críticas + nível 0 = total global do estado)
+    count_criticas = _count_rows(n_all_path) if os.path.exists(n_all_path) else 0
+    count_n0       = _count_rows(n_0_path)   if os.path.exists(n_0_path)   else 0
+
+    # O Total Global é a soma de todas as seções do estado
+    total_secoes_global = count_criticas + count_n0
 
     estado_means: dict[str, float] = {}
     if status_filter is not None and os.path.exists(n_all_path):
@@ -507,8 +516,6 @@ overview = analise.get_overview()
 pct = overview["total_secoes_criticas"] / max(overview["total_secoes"], 1)
 
 # ── 3. Renderiza os KPIs nas colunas restantes (Centralizados verticalmente) ───
-# O estilo com `margin-top: 1.8rem;` empurra a caixa exatamente para o eixo Y
-# central das duas caixas de input à esquerda.
 with k1:
     st.markdown(f"""
         <div style="margin-top: 1.8rem; height: 100%;">
@@ -573,7 +580,6 @@ with tab_geo:
     render_tab_geo(ano_selecionado, status_filter)
 
 with tab_criticidade:
-    # df_criticas já é o subconjunto correto para o filtro ativo
     render_tab_criticidade(analise.df_criticas, status_filter, estado_means)
 
 with tab_modelo:
