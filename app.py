@@ -388,29 +388,26 @@ with col_filtros:
         <div id="btn">?</div>
         <script>
           var btn = document.getElementById('btn');
-          var timer = null;
           var pDoc = window.parent.document;
-
+          
           var oldPanel = pDoc.getElementById('crit-panel-legend');
           if(oldPanel) oldPanel.remove();
 
           var panel = pDoc.createElement('div');
           panel.id = 'crit-panel-legend';
+          
+          // Barra de progresso removida do HTML
           panel.innerHTML = `
             <div id="crit-title" style="font-size:12px;font-weight:700;text-transform:uppercase;
               letter-spacing:.1em;color:#94a3b8;padding-bottom:8px;margin-bottom:10px;
               border-bottom:1px solid #f1f5f9;font-family:Inter,sans-serif;">Níveis de Criticidade</div>
-            {_items_html}
-            <div style="height:3px;background:#e2e8f0;border-radius:2px;margin-top:8px;overflow:hidden;">
-              <div id="crit-bar" style="height:100%;width:100%;background:#0072B2;border-radius:2px;
-                transition:width 3s linear;"></div>
-            </div>`;
+            {_items_html}`;
 
           Object.assign(panel.style, {{
-            position:'fixed', zIndex:'2147483647', background:'#fff', border:'1px solid #e2e8f0',
-            borderRadius:'12px',
-            padding:'12px 18px 10px',
-            width:'380px',
+            position:'fixed', zIndex:'2147483647', background:'#fff', border:'1px solid #e2e8f0', 
+            borderRadius:'12px', 
+            padding:'12px 18px 10px', 
+            width:'380px', 
             boxShadow:'0 12px 40px rgba(15,23,42,0.18)', fontFamily:'Inter,sans-serif',
             opacity:'0', transform:'translateY(-8px)',
             transition:'opacity .28s ease, transform .28s ease',
@@ -418,34 +415,21 @@ with col_filtros:
           }});
 
           pDoc.body.appendChild(panel);
-          var fill = pDoc.getElementById('crit-bar');
 
           function showPanel() {{
             var frame = window.frameElement;
             var fr    = frame.getBoundingClientRect();
             var br    = btn.getBoundingClientRect();
-
+            
             panel.style.display = 'block';
-            panel.style.left    = (fr.left + br.left + 50) + 'px';
+            
+            panel.style.left    = (fr.left + br.left + 50) + 'px'; 
             panel.style.top     = (fr.top  + br.top - 75) + 'px';
 
-            panel.getBoundingClientRect();
+            panel.getBoundingClientRect(); 
             panel.style.opacity       = '1';
             panel.style.transform     = 'translateY(0)';
             panel.style.pointerEvents = 'auto';
-
-            // Barra de progresso animada (auto-fechar em 3s)
-            fill.style.transition = 'none';
-            fill.style.width      = '100%';
-            requestAnimationFrame(function() {{
-              requestAnimationFrame(function() {{
-                fill.style.transition = 'width 3s linear';
-                fill.style.width      = '0%';
-              }});
-            }});
-
-            clearTimeout(timer);
-            timer = setTimeout(hidePanel, 3000);
           }}
 
           function hidePanel() {{
@@ -457,9 +441,9 @@ with col_filtros:
 
           // Fechar ao clicar fora do painel
           pDoc.addEventListener('mousedown', function(e) {{
+            // Verifica se o clique foi fora do painel e fora do próprio iframe
             if (panel.style.opacity === '1' && !panel.contains(e.target)) {{
-              clearTimeout(timer);
-              hidePanel();
+                hidePanel();
             }}
           }});
 
@@ -469,7 +453,6 @@ with col_filtros:
             if (panel.style.display === 'none' || panel.style.opacity === '0') {{
               showPanel();
             }} else {{
-              clearTimeout(timer);
               hidePanel();
             }}
           }});
