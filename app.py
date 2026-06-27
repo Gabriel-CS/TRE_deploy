@@ -343,14 +343,37 @@ st.markdown("""
 def _download_and_extract_data():
     data_dir = "data"
     if not os.path.exists(data_dir):
+        output_zip = "data.zip"
         with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
-            file_id = "01Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-"
-            url = f"https://drive.google.com/uc?id={file_id}"
-            output_zip = "data.zip"
-            gdown.download(url, output_zip, quiet=False)
-            with zipfile.ZipFile(output_zip, 'r') as zip_ref:
-                zip_ref.extractall(".")
-            os.remove(output_zip)
+            try:
+                # ID correto extraído do link compartilhado:
+                # https://drive.google.com/file/d/101Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-/view
+                file_id  = "101Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-"
+                url      = f"https://drive.google.com/uc?export=download&id={file_id}"
+
+                # fuzzy=True: lida automaticamente com a página de confirmação
+                # de vírus do Google Drive (comum em arquivos grandes)
+                gdown.download(url, output_zip, quiet=False, fuzzy=True)
+
+                with zipfile.ZipFile(output_zip, "r") as zip_ref:
+                    zip_ref.extractall(".")
+
+            except Exception as exc:
+                st.error(
+                    f"❌ Falha ao baixar os dados do Google Drive.\n\n"
+                    f"**Causa:** {exc}\n\n"
+                    "**Verifique:**\n"
+                    "1. A permissão do arquivo no Drive está como "
+                    "**'Qualquer pessoa com o link'**?\n"
+                    "2. O arquivo atingiu o limite de downloads do Google Drive? "
+                    "Nesse caso, aguarde algumas horas ou mova os dados para outro host.\n"
+                    "3. O `file_id` no código corresponde ao link correto?"
+                )
+                st.stop()
+            finally:
+                # Garante remoção do zip mesmo em caso de erro parcial
+                if os.path.exists(output_zip):
+                    os.remove(output_zip)
 
 _download_and_extract_data()
 
