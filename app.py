@@ -1,6 +1,5 @@
 import gc
 import os
-import zipfile
 
 import gdown
 import pandas as pd
@@ -339,41 +338,97 @@ st.markdown("""
 # ═══════════════════════════════════════════════════════════════════════════════
 # CACHE DE DADOS
 # ═══════════════════════════════════════════════════════════════════════════════
+# ── Mapa completo: caminho local → file_id no Google Drive ────────────────────
+_DRIVE_FILES: dict[str, str] = {
+    # output/nivel_criticidade — CSVs
+    "data/output/nivel_criticidade/df_somente_criticas_2022.csv": "15SvATnquzMQdi5fDXW2vjKtABoaNXQCt",
+    "data/output/nivel_criticidade/df_somente_criticas_2018.csv": "1OXm0pRRWAW0A5Arm3lDK1tvrl7WxbdCf",
+    "data/output/nivel_criticidade/df_com_atraso_2022.csv":       "1ci3ozJluYhvJwuk6jCjOpfw94OpDTmxf",
+    "data/output/nivel_criticidade/df_com_atraso_2018.csv":       "1C1vSBwWVTUF4Kj6ubHHL5ARS6fycJwbV",
+    "data/output/nivel_criticidade/df_critica_n0_2022.csv":       "1ZBFd6NvfajhB08GmqQ_qlRr1kI3PBnFR",
+    "data/output/nivel_criticidade/df_critica_n0_2018.csv":       "1K899Bc9pIA1O6ePCPq4AHQt6U8e6iClj",
+    "data/output/nivel_criticidade/df_critica_n1_2022.csv":       "1xBgjeWmczluE_yasnCn_RWhH6GHumWhl",
+    "data/output/nivel_criticidade/df_critica_n1_2018.csv":       "1qNDQ0iS78EyfKfV8-s933_mmQUsz3L08",
+    "data/output/nivel_criticidade/df_critica_n2_2022.csv":       "1NG-en-io_pfkCMXi1v9abiyTedg6uw38",
+    "data/output/nivel_criticidade/df_critica_n2_2018.csv":       "1IUSBlCa3sSPOdtqhnsyG_ShH1GnwHz55",
+    "data/output/nivel_criticidade/df_critica_n3_2022.csv":       "17SbakH3AsCuQpQb6hUBcDltS_t1c6KMG",
+    "data/output/nivel_criticidade/df_critica_n3_2018.csv":       "1Qh5r_mNgMT0SnZdBBlhSTTNBc0X8OnBn",
+    "data/output/nivel_criticidade/df_critica_n4_2022.csv":       "1tAeHpdoenOwjeRb3_duWUsZRHaEfv-ER",
+    "data/output/nivel_criticidade/df_critica_n4_2018.csv":       "1eWuqrUYAD5MeLqRpZeR65B5_huoCcrOb",
+    # output/modelos_urnas — ZIPs
+    "data/output/modelos_urnas/df_somente_criticas_2022.zip":     "1HHAzcqxA6xL9Qb9jFd7RmDJ7RP-pstix",
+    "data/output/modelos_urnas/df_somente_criticas_2018.zip":     "1dHbV3prK7IfAcU5qzqML3patGV4abMU3",
+    "data/output/modelos_urnas/df_com_atraso_2022.zip":           "1IOlrjbdxYBbsEAGsOxG2KZfaWNttn5zP",
+    "data/output/modelos_urnas/df_com_atraso_2018.zip":           "1L_CzZStuDAAeMUkvL-aALoiIstafo9Ko",
+    "data/output/modelos_urnas/df_completas_n0_2022.zip":         "1YhvGGHM9u-iL1fvy6lYhAa4o7jB2336d",
+    "data/output/modelos_urnas/df_completas_n0_2018.zip":         "138NORoY6MfawVOv8aNK3kLIl9GaRJrVM",
+    "data/output/modelos_urnas/df_completas_n1_2022.zip":         "1Rfn3TLhiv-rrpYgkdA5L0txqZhHuOtqN",
+    "data/output/modelos_urnas/df_completas_n1_2018.zip":         "1r4vfx93HjS6iSgIEj16a46TfuuIuCle_",
+    "data/output/modelos_urnas/df_completas_n2_2022.zip":         "19diBbxQY6Y6Lml1Ux6NDERHgjz5fAEko",
+    "data/output/modelos_urnas/df_completas_n2_2018.zip":         "1u77EX550FooLu0zjttWvtzvkiBe6IvON",
+    "data/output/modelos_urnas/df_completas_n3_2022.zip":         "1-fSU69UxV3ffEv6_0nlAWKvzmy1kljqX",
+    "data/output/modelos_urnas/df_completas_n3_2018.zip":         "1Ry_i8Tv6ESnBqqmiEl4GYU_VXfYFmw48",
+    "data/output/modelos_urnas/df_completas_n4_2022.zip":         "1Ct4Djb1Nl4kyUg0oNB2rNT1CR5CS9X4m",
+    "data/output/modelos_urnas/df_completas_n4_2018.zip":         "126tL7V2Dkd2SNm59BCaNhBi4Zg7qi2As",
+    # data_map — CSVs geográficos
+    "data/data_map/locais_criticos_2022.csv":                                       "1tE2jpwAgBPec63HNZbBSuCELzsiYLp4q",
+    "data/data_map/locais_criticos_2018.csv":                                       "1VH_mgIpvbZMl7Ibe0RWbuY5Vw1Fj4GGw",
+    "data/data_map/df_locais_somente_criticos_2022.csv":                            "1TFaVvdSUXZoG06vOF3YM4ryrMW6Zs4Np",
+    "data/data_map/df_locais_somente_criticos_2018.csv":                            "1tSE64NmZvurakW9_oEplUciEbqEPSn7g",
+    "data/data_map/df_locais_com_atraso_2022.csv":                                  "1jURd_9Eub55u8uxLOhJfmQd2583F2eKu",
+    "data/data_map/df_locais_com_atraso_2018.csv":                                  "1_rDPx25DJgkcM6HgR3RHOtv4MPm70a_D",
+    "data/data_map/locais_votacao_consolidado_sc_2022.csv":                         "19NGYsW9e0RpADmZBFSdFL-2KrXbXCT-y",
+    "data/data_map/locais_votacao_consolidado_sc_2018.csv":                         "1GOjEEQ4h1vRYqn5Ojf8cA-l6QeOBRo1I",
+    "data/data_map/df_locais_votacao_consolidado_somente_criticos_2022.csv":        "1f6xOxLcA3qaCU20KNbOhPG9oIRORJHat",
+    "data/data_map/df_locais_votacao_consolidado_somente_criticos_2018.csv":        "1hUZaaOfTW23w1T0tjrGknvkavzKmH7sd",
+    "data/data_map/df_locais_votacao_consolidado_com_atraso_2022.csv":              "18MkD7P4OddNyCiwjFtnhyum-ymUzdVM7",
+    "data/data_map/df_locais_votacao_consolidado_com_atraso_2018.csv":              "1ELcSDYaqT1LLVgzBtnvtcLCtXJpuCILs",
+}
+
+
+def _download_file(local_path: str, file_id: str) -> None:
+    """Baixa um único arquivo do Google Drive se ele ainda não existir localmente."""
+    if os.path.exists(local_path):
+        return
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    gdown.download(url, local_path, quiet=True, fuzzy=True)
+
+
 @st.cache_resource(show_spinner=False)
 def _download_and_extract_data():
-    data_dir = "data"
-    if not os.path.exists(data_dir):
-        output_zip = "data.zip"
-        with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
-            try:
-                # ID correto extraído do link compartilhado:
-                # https://drive.google.com/file/d/1Is7gILKCQ2lgE_06rRayNnY-JXz8zSjB/view
-                file_id  = "1Is7gILKCQ2lgE_06rRayNnY-JXz8zSjB"
-                url      = f"https://drive.google.com/uc?export=download&id={file_id}"
+    """
+    Baixa sob demanda apenas os arquivos ainda ausentes.
+    Cada arquivo é baixado diretamente ao seu caminho final — sem zip global.
+    """
+    arquivos_faltando = [p for p in _DRIVE_FILES if not os.path.exists(p)]
+    if not arquivos_faltando:
+        return
 
-                # fuzzy=True: lida automaticamente com a página de confirmação
-                # de vírus do Google Drive (comum em arquivos grandes)
-                gdown.download(url, output_zip, quiet=False, fuzzy=True, use_cookies=False)
+    total = len(arquivos_faltando)
+    progresso = st.progress(0, text="Inicializando banco de dados (apenas na primeira execução)…")
 
-                with zipfile.ZipFile(output_zip, "r") as zip_ref:
-                    zip_ref.extractall(".")
+    erros: list[str] = []
+    for i, local_path in enumerate(arquivos_faltando, start=1):
+        file_id = _DRIVE_FILES[local_path]
+        nome    = os.path.basename(local_path)
+        progresso.progress(i / total, text=f"Baixando {nome}… ({i}/{total})")
+        try:
+            _download_file(local_path, file_id)
+        except Exception as exc:
+            erros.append(f"{nome}: {exc}")
 
-            except Exception as exc:
-                st.error(
-                    f"❌ Falha ao baixar os dados do Google Drive.\n\n"
-                    f"**Causa:** {exc}\n\n"
-                    "**Verifique:**\n"
-                    "1. A permissão do arquivo no Drive está como "
-                    "**'Qualquer pessoa com o link'**?\n"
-                    "2. O arquivo atingiu o limite de downloads do Google Drive? "
-                    "Nesse caso, aguarde algumas horas ou mova os dados para outro host.\n"
-                    "3. O `file_id` no código corresponde ao link correto?"
-                )
-                st.stop()
-            finally:
-                # Garante remoção do zip mesmo em caso de erro parcial
-                if os.path.exists(output_zip):
-                    os.remove(output_zip)
+    progresso.empty()
+
+    if erros:
+        st.error(
+            "❌ Falha ao baixar os seguintes arquivos:\n\n"
+            + "\n".join(f"- {e}" for e in erros)
+            + "\n\n**Verifique se todos os arquivos no Google Drive estão com permissão "
+            "'Qualquer pessoa com o link → Visualizador'.**"
+        )
+        st.stop()
+
 
 _download_and_extract_data()
 
