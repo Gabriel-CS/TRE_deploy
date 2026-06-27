@@ -439,20 +439,15 @@ def _download_and_extract_data():
     if not arquivos_faltando:
         return
 
-    total = len(arquivos_faltando)
-    progresso = st.progress(0, text="Inicializando banco de dados (apenas na primeira execução)…")
-
     erros: list[str] = []
-    for i, local_path in enumerate(arquivos_faltando, start=1):
-        file_id = _DRIVE_FILES[local_path]
-        nome    = os.path.basename(local_path)
-        progresso.progress(i / total, text=f"Baixando {nome}… ({i}/{total})")
-        try:
-            _download_file(local_path, file_id)
-        except Exception as exc:
-            erros.append(f"{nome}: {exc}")
-
-    progresso.empty()
+    with st.spinner("⏳ Preparando o sistema pela primeira vez. Isso pode levar alguns instantes…"):
+        for local_path in arquivos_faltando:
+            file_id = _DRIVE_FILES[local_path]
+            nome    = os.path.basename(local_path)
+            try:
+                _download_file(local_path, file_id)
+            except Exception as exc:
+                erros.append(f"{nome}: {exc}")
 
     if erros:
         st.error(
