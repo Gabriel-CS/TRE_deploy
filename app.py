@@ -347,8 +347,8 @@ def _download_and_extract_data():
         with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
             try:
                 # ID correto extraído do link compartilhado:
-                # https://drive.google.com/file/d/101Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-/view
-                file_id  = "101Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-"
+                # https://drive.google.com/file/d/1Is7gILKCQ2lgE_06rRayNnY-JXz8zSjB/view
+                file_id  = "1Is7gILKCQ2lgE_06rRayNnY-JXz8zSjB"
                 url      = f"https://drive.google.com/uc?export=download&id={file_id}"
 
                 # fuzzy=True: lida automaticamente com a página de confirmação
