@@ -344,7 +344,7 @@ def _download_and_extract_data():
     data_dir = "data"
     if not os.path.exists(data_dir):
         with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
-            file_id = "16Fk1B9vIAkHvWZLJ5XfAru04XJ-t4HEO"
+            file_id = "01Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-"
             url = f"https://drive.google.com/uc?id={file_id}"
             output_zip = "data.zip"
             gdown.download(url, output_zip, quiet=False)
