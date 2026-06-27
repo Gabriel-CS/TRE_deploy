@@ -1,6 +1,5 @@
 import gc
 import os
-import shutil
 import zipfile
 
 import gdown
@@ -340,77 +339,20 @@ st.markdown("""
 # ═══════════════════════════════════════════════════════════════════════════════
 # CACHE DE DADOS
 # ═══════════════════════════════════════════════════════════════════════════════
-# ID do arquivo .zip no Google Drive (a pasta "data" compactada).
-# Pode ser sobrescrito via variável de ambiente, o que evita ter que editar
-# o código sempre que o arquivo no Drive for substituído.
-DRIVE_FILE_ID = os.environ.get("DRIVE_FILE_ID", "101Gv11AT0cRRwphq9Ozk9qoxtzh5fNf-")
-
-# Aumente este valor sempre que o conteúdo do .zip no Drive for substituído.
-# Como ele faz parte da chave do cache, isso força o re-download em todas
-# as instâncias do app (o cache_resource, por si só, não percebe que o
-# arquivo remoto mudou).
-DATA_VERSION = "1"
-
-_DATA_DIR = "data"
-_DATA_MARKER = os.path.join(_DATA_DIR, ".version")
-
-
 @st.cache_resource(show_spinner=False)
-def _download_and_extract_data(version: str) -> None:
-    """Garante que 'data/' existe e está na versão esperada, baixando e
-    extraindo o .zip do Google Drive quando necessário."""
-    if os.path.exists(_DATA_MARKER):
-        with open(_DATA_MARKER) as f:
-            if f.read().strip() == version:
-                return  # já baixado e na versão correta
-
-    with st.spinner("Baixando base de dados do Google Drive (apenas na primeira execução)..."):
-        output_zip = "data.zip"
-        url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
-        try:
-            gdown.download(url, output_zip, quiet=False, fuzzy=True)
-
-            if not os.path.exists(output_zip) or os.path.getsize(output_zip) < 1024:
-                raise RuntimeError(
-                    "O download retornou um arquivo vazio/inválido. Confirme que "
-                    "o arquivo no Drive está com permissão 'Qualquer pessoa com "
-                    "o link pode visualizar' e que o ID em DRIVE_FILE_ID está correto."
-                )
-
-            if os.path.exists(_DATA_DIR):
-                shutil.rmtree(_DATA_DIR)  # remove cópia antiga/incompleta
-
-            with zipfile.ZipFile(output_zip, "r") as zip_ref:
+def _download_and_extract_data():
+    data_dir = "data"
+    if not os.path.exists(data_dir):
+        with st.spinner("Inicializando ambiente e construindo banco de dados (apenas na primeira execução)..."):
+            file_id = "16Fk1B9vIAkHvWZLJ5XfAru04XJ-t4HEO"
+            url = f"https://drive.google.com/uc?id={file_id}"
+            output_zip = "data.zip"
+            gdown.download(url, output_zip, quiet=False)
+            with zipfile.ZipFile(output_zip, 'r') as zip_ref:
                 zip_ref.extractall(".")
+            os.remove(output_zip)
 
-            if not os.path.exists(_DATA_DIR):
-                raise RuntimeError(
-                    "O .zip foi extraído, mas a pasta 'data/' não foi encontrada. "
-                    "Confirme que a pasta dentro do .zip se chama exatamente "
-                    "'data' (e não 'dados' ou outro nome)."
-                )
-
-            with open(_DATA_MARKER, "w") as f:
-                f.write(version)
-
-        except zipfile.BadZipFile:
-            st.error(
-                "O arquivo baixado do Drive não é um .zip válido. Isso costuma "
-                "acontecer quando o Drive bloqueia downloads automáticos por "
-                "excesso de acessos recentes ('Too many users have viewed or "
-                "downloaded this file recently'). Aguarde algumas horas ou "
-                "considere hospedar o .zip no GitHub Releases como alternativa."
-            )
-            st.stop()
-        except Exception as e:
-            st.error(f"Falha ao baixar/extrair os dados do Drive: {e}")
-            st.stop()
-        finally:
-            if os.path.exists(output_zip):
-                os.remove(output_zip)
-
-
-_download_and_extract_data(DATA_VERSION)
+_download_and_extract_data()
 
 
 @st.cache_data(show_spinner=False, max_entries=2, ttl=300)
