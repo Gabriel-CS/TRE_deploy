@@ -1,45 +1,79 @@
-
 import os
+
 import pandas as pd
-import geopandas as gpd
-from src.analysis import UrnasCriticasAnalysis  # reutiliza a lógica de criticidade
 
-# Configuração dos anos e níveis
+# Importação das constantes da nossa Single Source of Truth
+from src.analysis import FILTER_COM_ATRASO, FILTER_SOMENTE_CRITICAS
+
+# Configuração dos anos eleitorais e níveis de filtro (textuais e numéricos)
 YEARS = ["2018", "2022"]
-STATUS_LEVELS = [0, 1, 2, 3, 4, None]  # None = todos os críticos (>0)
+STATUS_LEVELS = [0, 1, 2, 3, 4, FILTER_SOMENTE_CRITICAS, FILTER_COM_ATRASO]
 
-def preprocess_geo_for_year(year: str):
-    """Gera arquivos geográficos particionados para um ano específico."""
-    # Caminhos dos dados brutos (ajuste conforme sua estrutura)
-    base_path = f"data/output/{year}_1t_SE_urnas_consolidado.zip"
-    completas_path = f"data/output/urnas_completas_{year}_1t.zip"
-    
-    # Carrega o dataset completo de seções (apenas colunas necessárias)
-    df_completas = pd.read_csv(completas_path, sep=";", encoding="utf-8", compression="zip")
 
-    # basta filtrar por ano e status.
+def preprocess_geo_for_year(year: str) -> None:
+    """
+    Gera arquivos geográficos particionados (shards) baseando-se nas regras de negócio.
+    Lê o dataset bruto de locais apenas uma vez para otimizar I/O.
+    """
     geo_raw_path = f"data/data_map/locais_criticos_{year}.csv"
-    if os.path.exists(geo_raw_path):
-        df_geo = pd.read_csv(geo_raw_path)
-        
-        for status in STATUS_LEVELS:
-            if status is None:
-                mask = df_geo["STATUS"] > 0
-                suffix = "all"
-            else:
-                mask = df_geo["STATUS"] == status
-                suffix = f"n{status}"
-            
-            df_filtered = df_geo[mask].copy()
-            if not df_filtered.empty:
-                # Salva como CSV compactado
-                out_path = f"data/geo/{year}_geo_{suffix}.csv.zip"
-                os.makedirs(os.path.dirname(out_path), exist_ok=True)
-                df_filtered.to_csv(out_path, index=False, compression="zip")
-                print(f"Gerado: {out_path} ({len(df_filtered)} registros)")
-    else:
-        print(f"Arquivo {geo_raw_path} não encontrado. Pulando pré-processamento.")
+    
+    if not os.path.exists(geo_raw_path):
+        print(f"[AVISO] Arquivo base não encontrado: {geo_raw_path}. Pulando {year}.")
+        return
 
-if __name__ == "__main__":
+    print(f"\nIniciando particionamento para o ano: {year}...")
+    
+    # Otimização: tipagem forçada em memória durante a leitura
+    df_geo = pd.read_csv(geo_raw_path)
+    df_geo["STATUS"] = pd.to_numeric(df_geo["STATUS"], errors="coerce").fillna(0).astype(int)
+
+    for status in STATUS_LEVELS:
+        # 1. Definição da Máscara Booleana e do Sufixo do arquivo
+        if status == FILTER_SOMENTE_CRITICAS:
+            mask = df_geo["STATUS"] > 2
+            suffix = "somente_criticas"
+        elif status == FILTER_COM_ATRASO:
+            mask = df_geo["STATUS"] > 1
+            suffix = "com_atraso"
+        else:
+            mask = df_geo["STATUS"] == status
+            suffix = f"n{status}"
+        
+        # Cria um slice isolado na memória
+        df_filtered = df_geo[mask].copy()
+        
+        if df_filtered.empty:
+            print(f"  -> Nenhum registro encontrado para '{status}'. Ignorando exportação.")
+            continue
+
+        # 2. Roteamento de Caminho e Compressão
+        # Filtros agregados textuais vão para data_map em CSV nativo (para Fallbacks rápidos)
+        # Níveis numéricos unitários vão compactados (zip) para poupar espaço em disco
+        if isinstance(status, str):
+            out_path = f"data/data_map/df_locais_{suffix}_{year}.csv"
+            compression = None
+        else:
+            out_path = f"data/geo/{year}_geo_{suffix}.csv.zip"
+            compression = "zip"
+
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        
+        # 3. Exportação dos Dados
+        if compression:
+            df_filtered.to_csv(out_path, index=False, compression=compression)
+        else:
+            df_filtered.to_csv(out_path, index=False)
+            
+        print(f"  -> Gerado: {out_path} ({len(df_filtered)} registros)")
+
+
+def main() -> None:
+    """Função orquestradora do script."""
+    print("Iniciando pipeline de pré-processamento geográfico...")
     for year in YEARS:
         preprocess_geo_for_year(year)
+    print("\nPré-processamento geográfico concluído com sucesso!")
+
+
+if __name__ == "__main__":
+    main()
