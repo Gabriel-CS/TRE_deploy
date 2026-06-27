@@ -1,7 +1,7 @@
 import gc
 import os
 
-import gdown
+import requests
 import pandas as pd
 import streamlit as st
 
@@ -387,12 +387,46 @@ _DRIVE_FILES: dict[str, str] = {
 
 
 def _download_file(local_path: str, file_id: str) -> None:
-    """Baixa um único arquivo do Google Drive se ele ainda não existir localmente."""
+    """
+    Baixa um único arquivo do Google Drive usando requests puro.
+    Lida automaticamente com o cookie de confirmação que o Drive exige
+    para arquivos grandes (sem depender de nenhuma versão específica do gdown).
+    """
     if os.path.exists(local_path):
         return
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
-    url = f"https://drive.google.com/uc?export=download&id={file_id}"
-    gdown.download(url, local_path, quiet=True, fuzzy=True)
+
+    session = requests.Session()
+    url     = "https://drive.google.com/uc?export=download"
+
+    # Primeira requisição — pode retornar página de confirmação de vírus
+    resp = session.get(url, params={"id": file_id}, stream=True, timeout=60)
+    resp.raise_for_status()
+
+    # Se o Drive devolveu HTML (confirmação), extrai o token e refaz a requisição
+    content_type = resp.headers.get("Content-Type", "")
+    if "text/html" in content_type:
+        # Extrai o token do campo confirm= na página HTML
+        import re
+        token_match = re.search(r'confirm=([0-9A-Za-z_\-]+)', resp.text)
+        if token_match:
+            token = token_match.group(1)
+        else:
+            # Fallback: token fixo que o Drive aceita quando não há outro
+            token = "t"
+        resp = session.get(
+            url,
+            params={"id": file_id, "confirm": token},
+            stream=True,
+            timeout=120,
+        )
+        resp.raise_for_status()
+
+    # Grava em disco em chunks para não estourar memória
+    with open(local_path, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=1024 * 1024):  # 1 MB
+            if chunk:
+                f.write(chunk)
 
 
 @st.cache_resource(show_spinner=False)
