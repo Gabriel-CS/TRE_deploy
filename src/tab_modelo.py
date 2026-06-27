@@ -3,9 +3,10 @@ from __future__ import annotations
 import gc
 
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
-from src.analysis import OKABE_ITO, URN_MODELS
+from src.analysis import MODEL_COLOR, OKABE_ITO, URN_MODELS
 from src.charts import (
     apply_base_layout,
     bar_chart,
@@ -15,9 +16,10 @@ from src.charts import (
 
 
 def render_tab_modelo(analise) -> None:
-    """Renderiza o conteúdo completo da aba 'Análise por Modelo de Urna'."""
-
+    """Renderiza a aba 'Análise por Modelo de Urna'."""
+    _render_legenda_modelos(analise)
     _render_distribuicao(analise)
+    _render_tempos_medios(analise)
     _render_falhas_biometricas(analise)
     _render_inatividade(analise)
     _render_teclas_indevidas(analise)
@@ -27,8 +29,40 @@ def render_tab_modelo(analise) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Seções individuais
+# Componentes Auxiliares
 # ──────────────────────────────────────────────────────────────────────────────
+
+def _render_legenda_modelos(analise) -> None:
+    """Legenda global de cores dos modelos — topo da aba."""
+    modelos_presentes = analise.get_overview()["modelos_presentes"]
+    if not modelos_presentes:
+        return
+
+    keys_html = ""
+    for m in modelos_presentes:
+        cor = MODEL_COLOR.get(m, "#94A3B8")
+        keys_html += (
+            f'<div style="display:flex;align-items:center;margin-right:1.5rem;'
+            f'margin-bottom:0.2rem;margin-top:0.2rem;">'
+            f'  <div style="width:14px;height:14px;border-radius:3px;'
+            f'              background-color:{cor};margin-right:0.5rem;'
+            f'              box-shadow:0 1px 2px rgba(0,0,0,0.15);"></div>'
+            f'  <span style="font-size:0.85rem;font-weight:600;color:var(--color-ink-mid);">{m}</span>'
+            f'</div>'
+        )
+
+    st.markdown(f"""
+        <div style="background:var(--color-surface-2);border:1px solid var(--color-border);
+                    border-radius:var(--radius-card);padding:0.8rem 1.2rem;margin-bottom:2rem;
+                    display:flex;align-items:center;flex-wrap:wrap;">
+            <div style="font-size:0.72rem;font-weight:800;color:var(--color-ink-soft);
+                        text-transform:uppercase;letter-spacing:0.08em;margin-right:1.5rem;
+                        border-right:2px solid var(--color-border);padding-right:1.5rem;">
+                Modelos de Urna
+            </div>
+            {keys_html}
+        </div>
+    """, unsafe_allow_html=True)
 
 
 def _build_resumo_table(
@@ -40,8 +74,6 @@ def _build_resumo_table(
     Gera HTML de cards de resumo com mini barra de proporção.
 
     rows: lista de (cor_hex, model_name, v1_display, v2_display, v1_raw, v2_raw)
-      - v1_raw / v2_raw são numéricos usados para calcular a barra (v1/v2 * 100%).
-        Passe v1_raw=0 para ocultar a barra.
     """
     css = """
 <style>
@@ -76,9 +108,8 @@ def _build_resumo_table(
 .rm-bar-fill{height:3px;border-radius:99px;}
 </style>
 """
-    # cabeçalho
-    h1, h2 = col_headers[1], col_headers[2]
-    header = (
+    h1, h2  = col_headers[1], col_headers[2]
+    header  = (
         f'<div class="rm-header">'
         f'<div class="rm-hmodel">{col_headers[0]}</div>'
         f'<div class="rm-hcol">{h1}</div>'
@@ -86,8 +117,7 @@ def _build_resumo_table(
         f'</div>'
     )
 
-    # calcula max de v1_raw para normalizar barras
-    raws = [r[4] for r in rows if len(r) > 4]
+    raws    = [r[4] for r in rows if len(r) > 4]
     max_raw = max(raws) if raws else 1
     if max_raw == 0:
         max_raw = 1
@@ -98,14 +128,14 @@ def _build_resumo_table(
         v1_raw = row[4] if len(row) > 4 else 0
         v2_raw = row[5] if len(row) > 5 else 0
 
-        pct = min(v1_raw / max_raw * 100, 100) if max_raw else 0
+        pct      = min(v1_raw / max_raw * 100, 100) if max_raw else 0
         bar_html = (
             f'<div class="rm-bar-track">'
             f'<div class="rm-bar-fill" style="width:{pct:.1f}%;background:{cor};"></div>'
             f'</div>'
         ) if v1_raw > 0 else ""
 
-        total_label = f'<span class="rm-sub">do total</span>' if v2_raw else ""
+        total_label = '<span class="rm-sub">do total</span>' if v2_raw else ""
 
         cards += (
             f'<div class="rm-row">'
@@ -124,13 +154,13 @@ def _build_resumo_table(
             f'</div>'
         )
 
-    title_html = (
-        f'<p class="rm-section-title">{title}</p>'
-        if title else ""
-    )
+    title_html = f'<p class="rm-section-title">{title}</p>' if title else ""
     return f'{css}<div class="rm-wrap">{title_html}{header}{cards}</div>'
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Seções individuais
+# ──────────────────────────────────────────────────────────────────────────────
 
 def _render_distribuicao(analise) -> None:
     st.markdown("""
@@ -164,6 +194,50 @@ def _render_distribuicao(analise) -> None:
     gc.collect()
 
 
+def _render_tempos_medios(analise) -> None:
+    st.markdown("""
+        <div class="section-header"><h2>Distribuição de Tempo Médio Operacional</h2></div>
+        <div class="section-desc">Composição em segundos do tempo médio por eleitor (Fila, Autenticação e Inatividade) por modelo.</div>
+    """, unsafe_allow_html=True)
+
+    fila = analise.get_queue_times()
+    auth = analise.get_auth_duration()
+    inat = analise.get_inactivity_times()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=URN_MODELS, y=inat["means"], name="T. Inatividade",
+        marker_color="#E69F00",
+        text=[f"{v:.1f}s" if v > 0 else "" for v in inat["means"]],
+        textposition="inside", insidetextanchor="middle",
+    ))
+    fig.add_trace(go.Bar(
+        x=URN_MODELS, y=auth["means"], name="T. Autenticação",
+        marker_color="#009E73",
+        text=[f"{v:.1f}s" if v > 0 else "" for v in auth["means"]],
+        textposition="inside", insidetextanchor="middle",
+    ))
+    fig.add_trace(go.Bar(
+        x=URN_MODELS, y=fila["means"], name="T. Fila",
+        marker_color="#56B4E9",
+        text=[f"{v:.1f}s" if v > 0 else "" for v in fila["means"]],
+        textposition="inside", insidetextanchor="middle",
+    ))
+
+    fig = apply_base_layout(fig, height=450)
+    fig.update_layout(
+        barmode="stack",
+        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
+        showlegend=True,
+        xaxis=dict(categoryorder="array", categoryarray=URN_MODELS),
+        yaxis=dict(title="Tempo Médio Total (segundos)"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    del fig, fila, auth, inat
+    gc.collect()
+
+
 def _render_falhas_biometricas(analise) -> None:
     st.markdown("""
         <div class="section-header"><h2>Falhas Biométricas na Pré-Habilitação</h2></div>
@@ -185,7 +259,7 @@ def _render_falhas_biometricas(analise) -> None:
     with col_bio2:
         _rows = []
         for i, m in enumerate(URN_MODELS):
-            vm = analise.voters[m]
+            vm    = analise.voters[m]
             bio_m = vm[vm["bio_solicitada"] == True]
             n_sol = len(bio_m)
             falhas = int((bio_m["n_falhas_bio"] > 0).sum())
@@ -202,7 +276,7 @@ def _render_falhas_biometricas(analise) -> None:
 
 def _render_inatividade(analise) -> None:
     st.markdown("""
-        <div class="section-header"><h2>Tempo de Inatividade durante a Seção</h2></div>
+        <div class="section-header"><h2>Tempo de Inatividade e Desvio Padrão</h2></div>
         <div class="section-desc">Média e desvio padrão do tempo de inatividade no processo de votação (excluindo zeros).</div>
     """, unsafe_allow_html=True)
 
@@ -241,7 +315,7 @@ def _render_teclas_indevidas(analise) -> None:
         _rows = []
         total_kp_int = int(total_kp)
         for i, m in enumerate(URN_MODELS):
-            vm = analise.voters[m]
+            vm  = analise.voters[m]
             qtd = int(vm[vm["n_teclas_inv"] > 0]["n_teclas_inv"].sum())
             _rows.append((OKABE_ITO[i], m, f"{qtd:,}", f"{total_kp_int:,}", qtd, total_kp_int))
             del vm
@@ -260,7 +334,7 @@ def _render_escolaridade(analise) -> None:
         <div class="section-desc">Distribuição por grau de escolaridade e proporção de baixa escolaridade.</div>
     """, unsafe_allow_html=True)
 
-    edu = analise.get_education_distribution()
+    edu     = analise.get_education_distribution()
     low_edu = analise.get_low_education()
     col1, col2 = st.columns(2)
 
@@ -294,7 +368,7 @@ def _render_faixa_etaria(analise) -> None:
         <div class="section-desc">Distribuição etária e proporção de eleitores idosos (≥ 60 anos).</div>
     """, unsafe_allow_html=True)
 
-    age = analise.get_age_distribution()
+    age     = analise.get_age_distribution()
     elderly = analise.get_elderly_proportion()
     col1, col2 = st.columns(2)
 
