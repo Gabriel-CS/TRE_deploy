@@ -353,7 +353,7 @@ def _download_and_extract_data():
 
                 # fuzzy=True: lida automaticamente com a página de confirmação
                 # de vírus do Google Drive (comum em arquivos grandes)
-                gdown.download(url, output_zip, quiet=False, fuzzy=True)
+                gdown.download(url, output_zip, quiet=False, fuzzy=True, use_cookies=False)
 
                 with zipfile.ZipFile(output_zip, "r") as zip_ref:
                     zip_ref.extractall(".")
