@@ -1,428 +1,615 @@
 from __future__ import annotations
 
 import gc
+import os
 
-import plotly.express as px
-import plotly.graph_objects as go
+import folium
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import requests
 import streamlit as st
+from folium.plugins import MarkerCluster
+from scipy.spatial import Voronoi
+from shapely.geometry import Polygon
+from streamlit_folium import st_folium
 
-from src.analysis import MODEL_COLOR, OKABE_ITO, URN_MODELS
-from src.charts import (
-    apply_base_layout,
-    bar_chart,
-    bar_chart_horizontal,
-    stacked_bar,
+from src.analysis import (
+    FILTER_COM_ATRASO,
+    FILTER_SOMENTE_CRITICAS,
+    STATUS_LABELS,
+    STATUS_OPCOES,
 )
 
+# ── Paleta de status ─────────────────────────────────────────────────────────
+_COR_STATUS: dict[int, str] = {
+    0: "#0EA5E9",
+    1: "#22C55E",
+    2: "#EAB308",
+    3: "#F97316",
+    4: "#EF4444",
+}
+_COR_NAO_CRITICO: str = "#94A3B8"
 
-def render_tab_modelo(analise) -> None:
-    """Renderiza a aba 'Análise por Modelo de Urna'."""
-    _render_legenda_modelos(analise)
-    _render_distribuicao(analise)
-    _render_tempos_medios(analise)
-    _render_falhas_biometricas(analise)
-    _render_inatividade(analise)
-    _render_teclas_indevidas(analise)
-    _render_escolaridade(analise)
-    _render_faixa_etaria(analise)
-    _render_pcd(analise)
+SERGIPE_GEOJSON_URL: str = (
+    "https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-28-mun.json"
+)
+SERGIPE_GEOJSON_LOCAL: str = "data/geo/sergipe_municipios.geojson"
+
+SERGIPE_CENTER: tuple[float, float] = (-10.57, -37.38)
+SERGIPE_ZOOM: int = 8
+SERGIPE_MIN_ZOOM: int = 8
+SERGIPE_BOUNDS_SW: tuple[float, float] = (-11.55, -38.25)
+SERGIPE_BOUNDS_NE: tuple[float, float] = (-9.60, -36.35)
+
+# Altura do mapa.
+MAPA_ALTURA_PX: int = 720
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Componentes Auxiliares
-# ──────────────────────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False, ttl=3600)
+def _carregar_geojson_sergipe() -> dict | None:
+    if os.path.exists(SERGIPE_GEOJSON_LOCAL):
+        try:
+            import json
+            with open(SERGIPE_GEOJSON_LOCAL, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    try:
+        resp = requests.get(SERGIPE_GEOJSON_URL, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return None
 
-def _render_legenda_modelos(analise) -> None:
-    """Legenda global de cores dos modelos — topo da aba."""
-    modelos_presentes = analise.get_overview()["modelos_presentes"]
-    if not modelos_presentes:
-        return
 
-    keys_html = ""
-    for m in modelos_presentes:
-        cor = MODEL_COLOR.get(m, "#94A3B8")
-        keys_html += (
-            f'<div style="display:flex;align-items:center;margin-right:1.5rem;'
-            f'margin-bottom:0.2rem;margin-top:0.2rem;">'
-            f'  <div style="width:14px;height:14px;border-radius:3px;'
-            f'              background-color:{cor};margin-right:0.5rem;'
-            f'              box-shadow:0 1px 2px rgba(0,0,0,0.15);"></div>'
-            f'  <span style="font-size:0.85rem;font-weight:600;color:var(--color-ink-mid);">{m}</span>'
-            f'</div>'
+@st.cache_data(show_spinner=False, ttl=900)
+def carregar_dados_geograficos(ano: str, status_filter: str | int) -> tuple[gpd.GeoDataFrame | None, str | None]:
+    if status_filter == 0:
+        return carregar_dados_nao_criticos(ano)
+
+    df: pd.DataFrame | None = None
+
+    if status_filter == FILTER_SOMENTE_CRITICAS:
+        path_csv = f"data/data_map/df_locais_somente_criticos_{ano}.csv"
+    elif status_filter == FILTER_COM_ATRASO:
+        path_csv = f"data/data_map/df_locais_com_atraso_{ano}.csv"
+    else:
+        path_csv = f"data/data_map/locais_criticos_{ano}.csv"
+
+    if isinstance(status_filter, int):
+        path_zip = f"data/geo/{ano}_geo_n{status_filter}.csv.zip"
+        if os.path.exists(path_zip):
+            try:
+                df = pd.read_csv(path_zip, compression="zip")
+            except Exception:
+                pass
+
+    if df is None:
+        if status_filter == FILTER_SOMENTE_CRITICAS and not os.path.exists(path_csv):
+            path_csv = f"data/data_map/df_locais_votacao_consolidado_somente_criticos_{ano}.csv"
+        elif status_filter == FILTER_COM_ATRASO and not os.path.exists(path_csv):
+            path_csv = f"data/data_map/df_locais_votacao_consolidado_com_atraso_{ano}.csv"
+
+        if not os.path.exists(path_csv):
+            path_csv = f"data/data_map/locais_criticos_{ano}.csv"
+
+        try:
+            df = pd.read_csv(path_csv)
+        except FileNotFoundError:
+            return None, f"Arquivo não encontrado: `{path_csv}`"
+        except Exception as e:
+            return None, f"Erro na leitura: {str(e)}"
+
+        if isinstance(status_filter, int):
+            df = df[df["STATUS"] == status_filter].copy()
+        elif isinstance(status_filter, str):
+            if status_filter == FILTER_SOMENTE_CRITICAS:
+                df = df[df["STATUS"] > 2].copy()
+            elif status_filter == FILTER_COM_ATRASO:
+                df = df[df["STATUS"] > 1].copy()
+
+    cols_obrigatorias = ["NR_LATITUDE", "NR_LONGITUDE", "STATUS", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
+    faltantes = [c for c in cols_obrigatorias if c not in df.columns]
+    if faltantes:
+        return None, f"Colunas ausentes: {', '.join(faltantes)}"
+
+    df["NR_LATITUDE"]  = pd.to_numeric(df["NR_LATITUDE"],  errors="coerce")
+    df["NR_LONGITUDE"] = pd.to_numeric(df["NR_LONGITUDE"], errors="coerce")
+    df["STATUS"]       = pd.to_numeric(df["STATUS"],       errors="coerce")
+
+    df_valid = df.dropna(subset=["NR_LATITUDE", "NR_LONGITUDE", "STATUS"])
+    df_valid = df_valid[
+        (df_valid["NR_LATITUDE"]  != -1) &
+        (df_valid["NR_LONGITUDE"] != -1) &
+        (df_valid["NR_LATITUDE"].between(-90, 90)) &
+        (df_valid["NR_LONGITUDE"].between(-180, 180))
+    ].copy()
+
+    if df_valid.empty:
+        return None, "Nenhum registro possui coordenadas geográficas válidas para esta seleção."
+
+    gdf = gpd.GeoDataFrame(
+        df_valid,
+        geometry=gpd.points_from_xy(df_valid.NR_LONGITUDE, df_valid.NR_LATITUDE),
+        crs="EPSG:4326",
+    )
+    return gdf, None
+
+
+@st.cache_data(show_spinner=False, ttl=900)
+def carregar_dados_nao_criticos(ano: str) -> tuple[gpd.GeoDataFrame | None, str | None]:
+    candidates = [
+        f"data/data_map/locais_votacao_consolidado_sc_{ano}.csv.zip",
+        f"data/data_map/locais_votacao_consolidado_sc_{ano}.csv",
+    ]
+    df: pd.DataFrame | None = None
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                compression = "zip" if path.endswith(".zip") else "infer"
+                df = pd.read_csv(path, compression=compression)
+                break
+            except Exception as e:
+                return None, f"Erro ao ler {path}: {e}"
+
+    if df is None:
+        return None, (
+            f"Arquivo de seções não críticas não encontrado. "
+            f"Esperado em: {candidates[0]} ou {candidates[1]}"
         )
 
-    st.markdown(f"""
-        <div style="background:var(--color-surface-2);border:1px solid var(--color-border);
-                    border-radius:var(--radius-card);padding:0.8rem 1.2rem;margin-bottom:2rem;
-                    display:flex;align-items:center;flex-wrap:wrap;">
-            <div style="font-size:0.72rem;font-weight:800;color:var(--color-ink-soft);
-                        text-transform:uppercase;letter-spacing:0.08em;margin-right:1.5rem;
-                        border-right:2px solid var(--color-border);padding-right:1.5rem;">
-                Modelos de Urna
-            </div>
-            {keys_html}
-        </div>
-    """, unsafe_allow_html=True)
+    cols_obrigatorias = ["NR_LATITUDE", "NR_LONGITUDE", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
+    faltantes = [c for c in cols_obrigatorias if c not in df.columns]
+    if faltantes:
+        return None, f"Colunas ausentes no dataset não crítico: {', '.join(faltantes)}"
+
+    if "STATUS" not in df.columns:
+        df["STATUS"] = 0
+    else:
+        df = df[df["STATUS"] == 0].copy()
+
+    df["NR_LATITUDE"]  = pd.to_numeric(df["NR_LATITUDE"],  errors="coerce")
+    df["NR_LONGITUDE"] = pd.to_numeric(df["NR_LONGITUDE"], errors="coerce")
+
+    df_valid = df.dropna(subset=["NR_LATITUDE", "NR_LONGITUDE"])
+    df_valid = df_valid[
+        (df_valid["NR_LATITUDE"]  != -1) &
+        (df_valid["NR_LONGITUDE"] != -1) &
+        (df_valid["NR_LATITUDE"].between(-90,  90)) &
+        (df_valid["NR_LONGITUDE"].between(-180, 180))
+    ].copy()
+
+    if df_valid.empty:
+        return None, "Nenhum registro não crítico possui coordenadas válidas."
+
+    gdf = gpd.GeoDataFrame(
+        df_valid,
+        geometry=gpd.points_from_xy(df_valid.NR_LONGITUDE, df_valid.NR_LATITUDE),
+        crs="EPSG:4326",
+    )
+    return gdf, None
 
 
-def _build_resumo_table(
-    col_headers: list[str],
-    rows: list[tuple],
-    title: str = "Resumo por Modelo",
-) -> str:
-    """
-    Gera HTML de cards de resumo com mini barra de proporção.
-
-    rows: lista de (cor_hex, model_name, v1_display, v2_display, v1_raw, v2_raw)
-    """
-    css = """
-<style>
-.rm-wrap{padding:4px 0;}
-.rm-section-title{
-  font-size:11px;font-weight:500;color:#888;
-  text-transform:uppercase;letter-spacing:.06em;
-  margin:0 0 8px;padding:0;
-}
-.rm-header{
-  display:flex;align-items:center;
-  padding:0 10px 5px;border-bottom:1px solid #e8e8e8;margin-bottom:4px;
-}
-.rm-hmodel{flex:1.4;font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.05em;}
-.rm-hcol{flex:1;font-size:10px;font-weight:500;color:#aaa;text-align:center;text-transform:uppercase;letter-spacing:.05em;}
-.rm-hcol.right{text-align:right;}
-.rm-row{
-  display:flex;align-items:center;
-  padding:7px 10px;border-radius:8px;margin-bottom:3px;
-  background:#f9f9fb;border:.5px solid #ebebef;gap:0;
-  transition:background .15s;
-}
-.rm-row:hover{background:#fff;border-color:#d5d5e0;}
-.rm-model{display:flex;align-items:center;gap:8px;flex:1.4;min-width:0;}
-.rm-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
-.rm-name{font-size:12.5px;font-weight:500;color:#222;}
-.rm-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;}
-.rm-col.right{align-items:flex-end;}
-.rm-val{font-size:12.5px;font-weight:500;color:#1a1a1a;}
-.rm-sub{font-size:10px;color:#aaa;letter-spacing:.02em;}
-.rm-bar-track{width:100%;height:3px;background:#e4e4ea;border-radius:99px;margin-top:3px;overflow:hidden;}
-.rm-bar-fill{height:3px;border-radius:99px;}
-</style>
-"""
-    h1, h2  = col_headers[1], col_headers[2]
-    header  = (
-        f'<div class="rm-header">'
-        f'<div class="rm-hmodel">{col_headers[0]}</div>'
-        f'<div class="rm-hcol">{h1}</div>'
-        f'<div class="rm-hcol right">{h2}</div>'
+def _kpi_card(cor: str, label: str, qtd: int) -> str:
+    return (
+        f'<div style="background:var(--color-surface);border:1px solid var(--color-border);'
+        f'border-radius:var(--radius-card);padding:1.8rem 0.4rem;text-align:center;'
+        f'box-shadow:var(--shadow-card);border-top:3px solid {cor};min-width:0;flex:1;'
+        f'display:flex;flex-direction:column;justify-content:center;height:100%;">'
+        f'<div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;'
+        f'letter-spacing:0.08em;color:{cor};margin-bottom:0.3rem;'
+        f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{label}</div>'
+        f'<div style="font-size:1.25rem;font-weight:800;color:var(--color-ink);line-height:1.1;">{qtd:,}</div>'
+        f'<div style="font-size:0.65rem;color:var(--color-ink-muted);margin-top:0.2rem;">Locais de Votação</div>'
         f'</div>'
     )
 
-    raws    = [r[4] for r in rows if len(r) > 4]
-    max_raw = max(raws) if raws else 1
-    if max_raw == 0:
-        max_raw = 1
 
-    cards = ""
-    for row in rows:
-        cor, model, v1_disp, v2_disp = row[0], row[1], row[2], row[3]
-        v1_raw = row[4] if len(row) > 4 else 0
-        v2_raw = row[5] if len(row) > 5 else 0
+def _gerar_voronoi_layer(
+    gdf_points: gpd.GeoDataFrame,
+    geojson_se: dict,
+) -> folium.FeatureGroup | None:
+    if len(gdf_points) < 4:
+        return None
 
-        pct      = min(v1_raw / max_raw * 100, 100) if max_raw else 0
-        bar_html = (
-            f'<div class="rm-bar-track">'
-            f'<div class="rm-bar-fill" style="width:{pct:.1f}%;background:{cor};"></div>'
-            f'</div>'
-        ) if v1_raw > 0 else ""
+    np.random.seed(42)
+    coords = np.column_stack([gdf_points.geometry.x.values,
+                               gdf_points.geometry.y.values])
+    coords += np.random.uniform(-1e-5, 1e-5, coords.shape)
 
-        total_label = '<span class="rm-sub">do total</span>' if v2_raw else ""
+    vor = Voronoi(coords)
 
-        cards += (
-            f'<div class="rm-row">'
-            f'<div class="rm-model">'
-            f'  <span class="rm-dot" style="background:{cor};"></span>'
-            f'  <span class="rm-name">{model}</span>'
-            f'</div>'
-            f'<div class="rm-col">'
-            f'  <span class="rm-val">{v1_disp}</span>'
-            f'  {bar_html}'
-            f'</div>'
-            f'<div class="rm-col right">'
-            f'  {total_label}'
-            f'  <span class="rm-val">{v2_disp}</span>'
-            f'</div>'
-            f'</div>'
-        )
+    polys: list[Polygon | None] = []
+    for region_idx in vor.point_region:
+        region = vor.regions[region_idx]
+        if -1 not in region and len(region) > 0:
+            polys.append(Polygon(vor.vertices[region]))
+        else:
+            polys.append(None)
 
-    title_html = f'<p class="rm-section-title">{title}</p>' if title else ""
-    return f'{css}<div class="rm-wrap">{title_html}{header}{cards}</div>'
+    gdf_vor = gpd.GeoDataFrame(
+        gdf_points.reset_index(drop=True),
+        geometry=polys,
+        crs="EPSG:4326",
+    ).dropna(subset=["geometry"])
+
+    if gdf_vor.empty:
+        return None
+
+    gdf_se = gpd.GeoDataFrame.from_features(geojson_se["features"], crs="EPSG:4326")
+    try:
+        gdf_vor_clip = gpd.clip(gdf_vor, gdf_se)
+    except Exception:
+        gdf_vor_clip = gdf_vor
+
+    if gdf_vor_clip.empty:
+        return None
+
+    cols_export = ["STATUS", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO", "geometry"]
+    cols_export = [c for c in cols_export if c in gdf_vor_clip.columns]
+    geojson_str = gdf_vor_clip[cols_export].to_json()
+
+    grupo = folium.FeatureGroup(name="Tesselação de Voronoi", overlay=True, control=True)
+
+    folium.GeoJson(
+        geojson_str,
+        style_function=lambda feat: {
+            "fillColor": _COR_STATUS.get(int(feat["properties"].get("STATUS", 0)), "#6c757d"),
+            "color": "#ffffff",
+            "weight": 0.8,
+            "fillOpacity": 0.45,
+        },
+        highlight_function=lambda feat: {
+            "fillColor": _COR_STATUS.get(int(feat["properties"].get("STATUS", 0)), "#6c757d"),
+            "fillOpacity": 0.75,
+            "weight": 2.0,
+            "color": "#ffffff",
+        },
+        tooltip=folium.GeoJsonTooltip(
+            fields=["NM_LOCAL_VOTACAO", "NM_MUNICIPIO", "STATUS"],
+            aliases=["Local:", "Município:", "Status:"],
+            localize=True,
+            sticky=False,
+            style=(
+                "font-family: 'Inter', sans-serif; font-size: 0.75rem;"
+                "background: #ffffffcc; border-radius: 6px; border: none;"
+                "padding: 4px 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+            ),
+        ),
+    ).add_to(grupo)
+
+    return grupo
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Seções individuais
-# ──────────────────────────────────────────────────────────────────────────────
+def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None = None) -> None:
+    """Renderiza a aba 'Visão Geográfica'."""
 
-def _render_distribuicao(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Distribuição de Modelos</h2></div>
-        <div class="section-desc">Proporção e quantidade absoluta de seções por modelo de urna.</div>
+    st.markdown(f"""
+        <div class="section-header">
+            <h2>Distribuição Geoespacial dos Locais Críticos
+                <span style="color:var(--color-ink-muted); font-weight:400;"> · {ano}</span>
+            </h2>
+        </div>
     """, unsafe_allow_html=True)
 
-    dist = analise.get_model_distribution()
-    col1, col2 = st.columns(2)
+    gdf_geo, erro_geo = carregar_dados_geograficos(ano, status_filter)
+    if erro_geo:
+        st.warning(f"Dados geográficos indisponíveis: {erro_geo}")
+        return
 
-    with col1:
-        fig = bar_chart(
-            URN_MODELS, dist["proportions"],
-            text=[f"{v*100:.1f}%" for v in dist["proportions"]],
-            title="Proporção de Urnas por Modelo", yfmt=".0%", yrange=[0, 1.0],
+    # Prefixo usado como key do componente folium (único por ano+status)
+    ss_prefix = f"geo_{ano}_{status_filter}"
+
+    # ── Controles superiores ─────────────────────────────────────────────────
+    col_filtros, col_kpis, col_config = st.columns([1.3, 2.5, 1.2])
+
+    with col_filtros:
+        if "geo_last_global" not in st.session_state:
+            st.session_state["geo_last_global"] = status_filter
+
+        if st.session_state["geo_last_global"] != status_filter:
+            st.session_state["geo_last_global"] = status_filter
+            label_default = next(k for k, v in STATUS_OPCOES.items() if v == status_filter)
+            st.session_state["_geo_status_local"] = label_default
+
+        status_label_local = st.selectbox(
+            "Status operacional",
+            list(STATUS_OPCOES.keys()),
+            key="_geo_status_local",
         )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
+        status_filter_local = STATUS_OPCOES[status_label_local]
+        gdf_geo_status, erro_geo = carregar_dados_geograficos(ano, status_filter_local)
 
-    with col2:
-        fig = bar_chart(
-            URN_MODELS, dist["counts"],
-            text=[f"{v:,}" for v in dist["counts"]],
-            title="Total de Seções por Modelo",
-            yrange=[0, max(dist["counts"]) * 1.25 or 1],
+    if erro_geo:
+        st.warning(f"Dados geográficos indisponíveis: {erro_geo}")
+        return
+
+    with col_filtros:
+        municipios_disponiveis = sorted(gdf_geo_status["NM_MUNICIPIO"].dropna().unique())
+        prev_sel = st.session_state.get("_geo_muni_main", [])
+        valid_prev = [m for m in prev_sel if m in municipios_disponiveis]
+
+        selected_munis = st.multiselect(
+            "Municípios",
+            municipios_disponiveis,
+            default=valid_prev,
+            placeholder="Selecione um ou mais...",
+            key="_geo_muni_main",
+            help="Filtra o mapa exibindo apenas os municípios selecionados.",
         )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
 
-    del dist
-    gc.collect()
+    mask = pd.Series(True, index=gdf_geo_status.index)
+    if selected_munis:
+        mask &= gdf_geo_status["NM_MUNICIPIO"].isin(selected_munis)
 
+    gdf_map = gdf_geo_status[mask]
 
-def _render_tempos_medios(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Distribuição de Tempo Médio Operacional</h2></div>
-        <div class="section-desc">Composição em segundos do tempo médio por eleitor (Fila, Autenticação e Inatividade) por modelo.</div>
-    """, unsafe_allow_html=True)
+    if gdf_map.empty:
+        st.info("Nenhum ponto corresponde aos filtros selecionados.")
+        return
 
-    fila = analise.get_queue_times()
-    auth = analise.get_auth_duration()
-    inat = analise.get_inactivity_times()
+    with col_config:
+        st.markdown("""
+            <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;
+                        letter-spacing:0.08em;color:var(--color-ink-soft);
+                        margin-bottom:0.6rem;margin-top:0.2rem;">⚙️ Ajustes Visuais</div>
+        """, unsafe_allow_html=True)
 
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=URN_MODELS, y=inat["means"], name="T. Inatividade",
-        marker_color="#E69F00",
-        text=[f"{v:.1f}s" if v > 0 else "" for v in inat["means"]],
-        textposition="inside", insidetextanchor="middle",
-    ))
-    fig.add_trace(go.Bar(
-        x=URN_MODELS, y=auth["means"], name="T. Autenticação",
-        marker_color="#009E73",
-        text=[f"{v:.1f}s" if v > 0 else "" for v in auth["means"]],
-        textposition="inside", insidetextanchor="middle",
-    ))
-    fig.add_trace(go.Bar(
-        x=URN_MODELS, y=fila["means"], name="T. Fila",
-        marker_color="#56B4E9",
-        text=[f"{v:.1f}s" if v > 0 else "" for v in fila["means"]],
-        textposition="inside", insidetextanchor="middle",
-    ))
-
-    fig = apply_base_layout(fig, height=450)
-    fig.update_layout(
-        barmode="stack",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-        showlegend=True,
-        xaxis=dict(categoryorder="array", categoryarray=URN_MODELS),
-        yaxis=dict(title="Tempo Médio Total (segundos)"),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    del fig, fila, auth, inat
-    gc.collect()
-
-
-def _render_falhas_biometricas(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Falhas Biométricas na Pré-Habilitação</h2></div>
-        <div class="section-desc">Proporção de votantes com falha biométrica, entre os que tiveram biometria solicitada.</div>
-    """, unsafe_allow_html=True)
-
-    bio = analise.get_bio_failure_rates()
-    col_bio1, col_bio2 = st.columns([3, 1])
-
-    with col_bio1:
-        fig = bar_chart(
-            URN_MODELS, bio["rates"],
-            text=[f"{v*100:.1f}%" for v in bio["rates"]],
-            title="Falha Biométrica por Modelo", yfmt=".0%", yrange=[0, 1.0],
+        estilo_mapa = st.selectbox(
+            "Tema Base",
+            options=["Claro (Positron)", "Escuro (Dark Matter)", "Padrão (Voyager)", "OpenStreetMap"],
+            index=0,
+            label_visibility="collapsed",
+            help="Altera o provedor de estilo do mapa de fundo.",
         )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
 
-    with col_bio2:
-        _rows = []
-        for i, m in enumerate(URN_MODELS):
-            vm    = analise.voters[m]
-            bio_m = vm[vm["bio_solicitada"] == True]
-            n_sol = len(bio_m)
-            falhas = int((bio_m["n_falhas_bio"] > 0).sum())
-            _rows.append((OKABE_ITO[i], m, f"{n_sol:,}", f"{falhas:,}", n_sol, falhas))
-            del vm, bio_m
+        st.markdown("<div style='height:0.2rem;'></div>", unsafe_allow_html=True)
+        agrupar_pontos = st.checkbox("📍 Agrupar Locais", value=True, help="Agrupa marcadores próximos.")
+        exibir_voronoi = st.checkbox("🔷 Voronoi", value=False, key="_geo_voronoi_toggle")
+
+        exibir_nao_criticos = (status_filter_local == 0)
+
+    gdf_nao_criticos: gpd.GeoDataFrame | None = None
+    if exibir_nao_criticos:
+        gdf_nc, erro_nc = carregar_dados_nao_criticos(ano)
+        if erro_nc:
+            st.warning(f"Pontos não críticos indisponíveis: {erro_nc}")
+        else:
+            if selected_munis:
+                gdf_nao_criticos = gdf_nc[gdf_nc["NM_MUNICIPIO"].isin(selected_munis)].copy()
+            else:
+                gdf_nao_criticos = gdf_nc
+
+    with col_kpis:
+        st.markdown("<div style='margin-top:1.8rem;'></div>", unsafe_allow_html=True)
+        if isinstance(status_filter_local, str):
+            counts = gdf_map["STATUS"].value_counts().sort_index()
+            cards_html = "".join(
+                _kpi_card(
+                    _COR_STATUS.get(int(s), "#6c757d"),
+                    STATUS_LABELS.get(int(s), f"Nível {int(s)}"),
+                    int(q),
+                )
+                for s, q in counts.items()
+            )
+        else:
+            cor   = _COR_STATUS.get(int(status_filter_local), "#6c757d")
+            label = STATUS_LABELS.get(int(status_filter_local), f"Nível {status_filter_local}")
+            qtd   = len(gdf_map)
+            cards_html = _kpi_card(cor, label, qtd)
+
         st.markdown(
-            _build_resumo_table(["Modelo", "Solicitada", "Falhas"], _rows, title="Resumo por Modelo"),
+            f'<div style="display:flex;gap:6px;align-items:stretch;">{cards_html}</div>',
             unsafe_allow_html=True,
         )
 
-    del bio
-    gc.collect()
+    st.markdown("<div style='height:1.0rem;'></div>", unsafe_allow_html=True)
 
+    # ── Renderização do mapa Folium ──────────────────────────────────────────
+    col_mapa = st.container()
+    with col_mapa:
+        dicionario_tiles = {
+            "Claro (Positron)":    "CartoDB positron",
+            "Escuro (Dark Matter)":"CartoDB dark_matter",
+            "Padrão (Voyager)":    "CartoDB voyager",
+            "OpenStreetMap":       "OpenStreetMap",
+        }
+        tema_selecionado = dicionario_tiles.get(estilo_mapa, "CartoDB positron")
 
-def _render_inatividade(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Tempo de Inatividade e Desvio Padrão</h2></div>
-        <div class="section-desc">Média e desvio padrão do tempo de inatividade no processo de votação (excluindo zeros).</div>
-    """, unsafe_allow_html=True)
+        current_center = SERGIPE_CENTER
+        current_zoom   = SERGIPE_ZOOM
 
-    inat = analise.get_inactivity_times()
-    fig = bar_chart_horizontal(
-        URN_MODELS, inat["means"],
-        text=[f"{m:.1f}s (±{s:.1f})" for m, s in zip(inat["means"], inat["stds"])],
-        title="Tempo de Inatividade (média ± DP)",
-        xrange=[0, max(m + s for m, s in zip(inat["means"], inat["stds"])) * 1.25 or 1],
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    del fig, inat
-    gc.collect()
-
-
-def _render_teclas_indevidas(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Proporção de Teclas Indevidas</h2></div>
-        <div class="section-desc">Parcela do total de teclas indevidas concentrada por modelo.</div>
-    """, unsafe_allow_html=True)
-
-    inv_keys = analise.get_invalid_keys()
-    total_kp = analise.df_log["n_teclas_inv"].sum()
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        fig = bar_chart(
-            URN_MODELS, inv_keys["proportions"],
-            text=[f"{v*100:.1f}%" for v in inv_keys["proportions"]],
-            title="Teclas Indevidas por Modelo", yfmt=".0%", yrange=[0, 1.0],
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
-
-    with col2:
-        _rows = []
-        total_kp_int = int(total_kp)
-        for i, m in enumerate(URN_MODELS):
-            vm  = analise.voters[m]
-            qtd = int(vm[vm["n_teclas_inv"] > 0]["n_teclas_inv"].sum())
-            _rows.append((OKABE_ITO[i], m, f"{qtd:,}", f"{total_kp_int:,}", qtd, total_kp_int))
-            del vm
-        st.markdown(
-            _build_resumo_table(["Modelo", "Indevidas", "Total"], _rows, title="Resumo por Modelo"),
-            unsafe_allow_html=True,
+        m = folium.Map(
+            location=current_center,
+            zoom_start=current_zoom,
+            min_zoom=SERGIPE_MIN_ZOOM,
+            max_zoom=18,
+            max_bounds=True,
+            tiles=tema_selecionado,
+            attr="CartoDB" if "CartoDB" in tema_selecionado else None,
+            control_scale=True,
         )
 
-    del inv_keys, total_kp
-    gc.collect()
+        bounds = [
+            [SERGIPE_BOUNDS_SW[0], SERGIPE_BOUNDS_SW[1]],
+            [SERGIPE_BOUNDS_NE[0], SERGIPE_BOUNDS_NE[1]],
+        ]
+        m.fit_bounds(bounds)
+        m.options["maxBounds"]           = bounds
+        m.options["maxBoundsViscosity"]  = 1.0
+        m.options["minZoom"]             = SERGIPE_MIN_ZOOM
 
+        geojson_se = _carregar_geojson_sergipe()
+        if geojson_se:
+            folium.GeoJson(
+                geojson_se,
+                name="Municípios de Sergipe",
+                style_function=lambda feature: {
+                    "fillColor": "#d1d5db", "color": "#4b5563",
+                    "weight": 1.2, "fillOpacity": 0.15, "opacity": 0.7,
+                },
+                highlight_function=lambda feature: {
+                    "fillColor": "#9ca3af", "fillOpacity": 0.3,
+                    "weight": 1.8, "color": "#1f2937",
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=["name"], aliases=["Município:"], localize=True, sticky=False,
+                ),
+            ).add_to(m)
 
-def _render_escolaridade(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Escolaridade</h2></div>
-        <div class="section-desc">Distribuição por grau de escolaridade e proporção de baixa escolaridade.</div>
-    """, unsafe_allow_html=True)
+        if exibir_voronoi and geojson_se:
+            if len(gdf_map) < 4:
+                st.warning("São necessários ao menos 4 pontos para a tesselação de Voronoi.")
+            else:
+                with st.spinner("Calculando tesselação de Voronoi…"):
+                    grupo_vor = _gerar_voronoi_layer(gdf_map, geojson_se)
+                if grupo_vor is not None:
+                    grupo_vor.add_to(m)
 
-    edu     = analise.get_education_distribution()
-    low_edu = analise.get_low_education()
-    col1, col2 = st.columns(2)
+        if agrupar_pontos:
+            container_marcadores = MarkerCluster(name="Locais Votação", overlay=True, control=False).add_to(m)
+        else:
+            container_marcadores = folium.FeatureGroup(name="Locais Votação", overlay=True, control=False).add_to(m)
 
-    with col1:
-        fig = stacked_bar(
-            edu["df_proportions"], edu["labels"],
-            px.colors.qualitative.Pastel,
-            title="Distribuição por Escolaridade",
+        gdf_sorted      = gdf_map.sort_values(by="STATUS", ascending=False)
+        cols_agrupamento = ["NR_LATITUDE", "NR_LONGITUDE", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
+        grupos_locais   = gdf_sorted.groupby(cols_agrupamento)
+
+        for (lat, lon, local, municipio), df_local in grupos_locais:
+            status_maximo  = int(df_local["STATUS"].max())
+            cor_principal  = _COR_STATUS.get(status_maximo, "#6c757d")
+            label_principal = STATUS_LABELS.get(status_maximo, f"Status {status_maximo}")
+            qtd_secoes     = len(df_local)
+            texto_secoes   = "seções com atraso" if status_maximo > 1 else "seções sem atraso"
+
+            popup_html = f"""
+                <div style="font-family:'Inter',sans-serif;min-width:200px;max-width:260px;">
+                    <div style="background:{cor_principal}12;border-left:3px solid {cor_principal};
+                                padding:8px 10px;border-radius:0 6px 6px 0;">
+                        <div style="font-size:0.9rem;font-weight:700;color:#0f172a;
+                                    margin-bottom:2px;line-height:1.2;">{local}</div>
+                        <div style="font-size:0.75rem;color:#64748b;">
+                            {municipio} · <b>{qtd_secoes}</b> {texto_secoes}</div>
+                    </div>
+                </div>
+            """
+
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=5 + (status_maximo * 1.2),
+                popup=folium.Popup(popup_html, max_width=280),
+                tooltip=folium.Tooltip(
+                    f"<b>{local}</b><br>"
+                    f"<span style='color:{cor_principal};font-weight:500;'>{label_principal}</span><br>"
+                    f"<span style='font-size:0.75rem;color:#64748b;'>{qtd_secoes} seções aglomeradas</span>",
+                    sticky=False,
+                ),
+                color=cor_principal,
+                fill=True,
+                fillColor=cor_principal,
+                fillOpacity=0.85,
+                weight=1.5,
+            ).add_to(container_marcadores)
+
+        # Pontos não críticos
+        if gdf_nao_criticos is not None and not gdf_nao_criticos.empty:
+            if agrupar_pontos:
+                container_nc = MarkerCluster(
+                    name="Seções Não Críticas", overlay=True, control=True,
+                ).add_to(m)
+            else:
+                container_nc = folium.FeatureGroup(
+                    name="Seções Não Críticas", overlay=True, control=True,
+                ).add_to(m)
+
+            cols_nc    = ["NR_LATITUDE", "NR_LONGITUDE", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
+            grupos_nc  = gdf_nao_criticos.groupby(cols_nc)
+
+            for (lat, lon, local, municipio), df_nc_local in grupos_nc:
+                qtd_nc = len(df_nc_local)
+
+                popup_nc_html = (
+                    f'<div style="font-family:\'Inter\',sans-serif;min-width:200px;max-width:260px;">'
+                    f'<div style="background:{_COR_NAO_CRITICO}18;border-left:3px solid {_COR_NAO_CRITICO};'
+                    f'padding:8px 10px;border-radius:0 6px 6px 0;">'
+                    f'<div style="font-size:0.9rem;font-weight:700;color:#0f172a;line-height:1.2;">{local}</div>'
+                    f'<div style="font-size:0.75rem;color:#64748b;">'
+                    f'{municipio} · <b>{qtd_nc}</b> seção(ões) sem atraso</div>'
+                    f'</div></div>'
+                )
+
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=4,
+                    popup=folium.Popup(popup_nc_html, max_width=260),
+                    tooltip=folium.Tooltip(
+                        f"<b>{local}</b><br>"
+                        f"<span style='color:{_COR_NAO_CRITICO};font-weight:500;'>Sem Atraso</span><br>"
+                        f"<span style='font-size:0.75rem;color:#64748b;'>{qtd_nc} seção(ões)</span>",
+                        sticky=False,
+                    ),
+                    color=_COR_NAO_CRITICO,
+                    fill=True,
+                    fillColor=_COR_NAO_CRITICO,
+                    fillOpacity=0.55,
+                    weight=1.0,
+                ).add_to(container_nc)
+
+        folium.LayerControl(collapsed=True).add_to(m)
+
+        # Guard JS
+        map_var = m.get_name()
+        guard_js = f"""
+        <script>
+        (function() {{
+            var MIN_ZOOM = {SERGIPE_MIN_ZOOM};
+            var CENTER   = [{current_center[0]}, {current_center[1]}];
+            var DEF_ZOOM = {current_zoom};
+            var BOUNDS   = L.latLngBounds(
+                L.latLng({SERGIPE_BOUNDS_SW[0]}, {SERGIPE_BOUNDS_SW[1]}),
+                L.latLng({SERGIPE_BOUNDS_NE[0]}, {SERGIPE_BOUNDS_NE[1]})
+            );
+            function enforceZoom(map) {{
+                if (map.getZoom() < MIN_ZOOM) map.setZoom(MIN_ZOOM);
+            }}
+            function enforceBoundsAndZoom(map) {{
+                if (!map) return;
+                map.setMaxBounds(BOUNDS);
+                map.options.maxBoundsViscosity = 1.0;
+                map.setMinZoom(MIN_ZOOM);
+                enforceZoom(map);
+                if (!BOUNDS.contains(map.getCenter())) {{
+                    map.setView(CENTER, DEF_ZOOM);
+                }}
+            }}
+            function waitForMap() {{
+                var map = window['{map_var}'];
+                if (map && map._leaflet_id) {{
+                    enforceBoundsAndZoom(map);
+                    map.on('load',      function() {{ enforceBoundsAndZoom(map); }});
+                    map.on('zoomend',   function() {{ enforceZoom(map); }});
+                    map.on('dragend',   function() {{ enforceBoundsAndZoom(map); }});
+                    map.on('viewreset', function() {{ enforceBoundsAndZoom(map); }});
+                }} else {{
+                    setTimeout(waitForMap, 200);
+                }}
+            }}
+            waitForMap();
+        }})();
+        </script>
+        """
+        from branca.element import Element
+        m.get_root().html.add_child(Element(guard_js))
+
+        # Renderizar o mapa
+        st_folium(
+            m,
+            use_container_width=True,
+            height=MAPA_ALTURA_PX,
+            returned_objects=[],
+            key=f"{ss_prefix}_folium",
         )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
 
-    with col2:
-        fig = bar_chart(
-            URN_MODELS, low_edu["proportions"],
-            text=[f"{v*100:.1f}%" for v in low_edu["proportions"]],
-            title="Baixa Escolaridade por Modelo", yfmt=".0%", yrange=[0, 1.0],
-            x_categoryorder=URN_MODELS,
-            height=420,
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
-
-    del edu, low_edu
-    gc.collect()
-
-
-def _render_faixa_etaria(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Faixa Etária</h2></div>
-        <div class="section-desc">Distribuição etária e proporção de eleitores idosos (≥ 60 anos).</div>
-    """, unsafe_allow_html=True)
-
-    age     = analise.get_age_distribution()
-    elderly = analise.get_elderly_proportion()
-    col1, col2 = st.columns(2)
-
-    with col1:
-        fig = stacked_bar(
-            age["df_proportions"], age["groups"],
-            px.colors.qualitative.Safe,
-            title="Distribuição por Faixa Etária",
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
-
-    with col2:
-        fig = bar_chart(
-            URN_MODELS, elderly["proportions"],
-            text=[f"{v*100:.1f}%" for v in elderly["proportions"]],
-            title="Eleitores Idosos (≥ 60 anos)", yfmt=".0%", yrange=[0, 1.0],
-            x_categoryorder=URN_MODELS,
-            height=420,
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
-
-    del age, elderly
-    gc.collect()
-
-
-def _render_pcd(analise) -> None:
-    st.markdown("""
-        <div class="section-header"><h2>Eleitores PCD</h2></div>
-        <div class="section-desc">Quantidade absoluta, taxa e relação com falhas biométricas.</div>
-    """, unsafe_allow_html=True)
-
-    pcd = analise.get_pcd_stats()
-    col1, col2 = st.columns(2)
-
-    with col1:
-        fig = bar_chart(
-            URN_MODELS, pcd["totals"],
-            text=[f"{v:,}" for v in pcd["totals"]],
-            title="Total de Eleitores PCD",
-            yrange=[0, max(pcd["totals"]) * 1.25 or 1],
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
-
-    with col2:
-        fig = bar_chart(
-            URN_MODELS, pcd["taxas"],
-            text=[f"{v*100:.2f}%" for v in pcd["taxas"]],
-            title="Taxa de Eleitores PCD", yfmt=".2%", yrange=[0, 1.0],
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        del fig
-
-    del pcd
+    del gdf_map, m
     gc.collect()
