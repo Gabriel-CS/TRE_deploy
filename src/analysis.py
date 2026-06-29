@@ -14,10 +14,10 @@ STATUS_OPCOES: dict[str, str | int] = {
     "Somente criticas":     FILTER_SOMENTE_CRITICAS,
     "Com atraso":           FILTER_COM_ATRASO,
     "Nível 0 — Sem Atraso": 0,
-    "Nível 1 — Sem Atraso": 1,
-    "Nível 2 — Com Atraso": 2,
-    "Nível 3 — Com Atraso": 3,
-    "Nível 4 — Com Atraso": 4,
+    "Nível 1 — Normal": 1,
+    "Nível 2 — Atenção": 2,
+    "Nível 3 — Crítico": 3,
+    "Nível 4 — Super Crítica": 4,
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
