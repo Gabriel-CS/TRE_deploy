@@ -399,50 +399,50 @@ _DRIVE_FILES: dict[str, str] = {
     # output/nivel_criticidade — CSVs (pipeline novo renomeou para
     # urnas_status_X / urnas_com_atraso / urnas_criticas, mas os caminhos
     # locais/chaves deste dict foram mantidos como estavam)
-    "output/nivel_criticidade/2022/por_status/urnas_criticas_2022_1t.csv": "1gMB8nvzSF5urD8eAyuAKOHJR7OWIpRKQ",  # urnas_criticas_2022_1t.csv
-    "output/nivel_criticidade/2018/por_status/urnas_criticas_2018_1t.csv": "1VCGapqyYaUj9Wygzvj_LxnbLbJz0r6yK",  # urnas_criticas_2018_1t.csv
-    "output/nivel_criticidade/2022/por_status/urnas_com_atraso_2022_1t.csv":       "11BxyMBhkOnMj5iEsupd9DXfoLSA_TJoU",  # urnas_com_atraso_2022_1t.csv
-    "output/nivel_criticidade/2018/por_status/urnas_com_atraso_2018_1t.csv":       "1VCv8Wu_TvvTa-BnGBj716QT0WPg2Fy9v",  # urnas_com_atraso_2018_1t.csv
-    "output/nivel_criticidade/2022/por_status/urnas_status_0_2022_1t.csv":       "1lXuCD9A0oGRWU57-CtMyna52d2heG7MT",  # urnas_status_0_2022_1t.csv
-    "output/nivel_criticidade/2018/por_status/urnas_status_0_2018_1t.csv":       "1e29Cvd5ADzAWpjIgxK-pJglLze2fBzyi",  # urnas_status_0_2018_1t.csv
-    "output/nivel_criticidade/2022/por_status/urnas_status_1_2022_1t.csv":       "1yL9GCYtj1-ammAxYpuHogI1QYkhoR9DS",  # urnas_status_1_２０２２_１ｔ.csv
-    "output/nivel_criticidade/2018/por_status/urnas_status_1_2018_1t.csv":       "1fq4VHGpbiwYgkXBwobjRSrO7me34jP44",  # urnas_status_1_2018_1t.csv
-    "output/nivel_criticidade/2022/por_status/urnas_status_2_2022_1t.csv":       "1cy1jYFVXNL0DdZQiheT_25xsuFCRbL_7",  # urnas_status_2_2022_1t.csv
-    "output/nivel_criticidade/2018/por_status/urnas_status_2_2018_1t.csv":       "1DmBIUZxQwSNYSwFGVNCxxuYdRU3wMQv9",  # urnas_status_2_2018_1t.csv
-    "output/nivel_criticidade/2022/por_status/urnas_status_3_2022_1t.csv":       "1dPA13u1ISXC8QQntzNl_mS5QOTlZKS5G",  # urnas_status_3_2022_1t.csv
-    "output/nivel_criticidade/2018/por_status/urnas_status_3_2018_1t.csv":       "1H8OIYLvIfJi6UfgeRgWxjusby13ul-nG",  # urnas_status_3_2018_1t.csv
-    "output/nivel_criticidade/2022/por_status/urnas_status_4_2022_1t.csv":       "1WqsoBmMOd1a4BGi9SokSrCyacviYmp1y",  # urnas_status_4_２０２２_１ｔ.csv
-    "output/nivel_criticidade/2018/por_status/urnas_status_4_2018_1t.csv":       "13Xn_9naHkAah4o62vic3NF__5gYm6d3g",  # urnas_status_4_２０１８_１ｔ.csv - 
+    "data/output/nivel_criticidade/2022/por_status/urnas_criticas_2022_1t.csv": "1gMB8nvzSF5urD8eAyuAKOHJR7OWIpRKQ",  # urnas_criticas_2022_1t.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_criticas_2018_1t.csv": "1VCGapqyYaUj9Wygzvj_LxnbLbJz0r6yK",  # urnas_criticas_2018_1t.csv
+    "data/output/nivel_criticidade/2022/por_status/urnas_com_atraso_2022_1t.csv":       "11BxyMBhkOnMj5iEsupd9DXfoLSA_TJoU",  # urnas_com_atraso_2022_1t.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_com_atraso_2018_1t.csv":       "1VCv8Wu_TvvTa-BnGBj716QT0WPg2Fy9v",  # urnas_com_atraso_2018_1t.csv
+    "data/output/nivel_criticidade/2022/por_status/urnas_status_0_2022_1t.csv":       "1lXuCD9A0oGRWU57-CtMyna52d2heG7MT",  # urnas_status_0_2022_1t.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_status_0_2018_1t.csv":       "1e29Cvd5ADzAWpjIgxK-pJglLze2fBzyi",  # urnas_status_0_2018_1t.csv
+    "data/output/nivel_criticidade/2022/por_status/urnas_status_1_2022_1t.csv":       "1yL9GCYtj1-ammAxYpuHogI1QYkhoR9DS",  # urnas_status_1_２０２２_１ｔ.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_status_1_2018_1t.csv":       "1fq4VHGpbiwYgkXBwobjRSrO7me34jP44",  # urnas_status_1_2018_1t.csv
+    "data/output/nivel_criticidade/2022/por_status/urnas_status_2_2022_1t.csv":       "1cy1jYFVXNL0DdZQiheT_25xsuFCRbL_7",  # urnas_status_2_2022_1t.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_status_2_2018_1t.csv":       "1DmBIUZxQwSNYSwFGVNCxxuYdRU3wMQv9",  # urnas_status_2_2018_1t.csv
+    "data/output/nivel_criticidade/2022/por_status/urnas_status_3_2022_1t.csv":       "1dPA13u1ISXC8QQntzNl_mS5QOTlZKS5G",  # urnas_status_3_2022_1t.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_status_3_2018_1t.csv":       "1H8OIYLvIfJi6UfgeRgWxjusby13ul-nG",  # urnas_status_3_2018_1t.csv
+    "data/output/nivel_criticidade/2022/por_status/urnas_status_4_202₂ _１ｔ.csv":       "1WqsoBmMOd1a4BGi9SokSrCyacviYmp１y",  # urnas_status_4_２０２２_１ｔ.csv
+    "data/output/nivel_criticidade/20₁₈/por_status/urnas_status_4_₂₀₁₈ _１ｔ.csv":       "₁₃Xn₉naHkAah4o6₂vic3NF__5gYm6d3g",  # urnas_status_4_２₀₁₈ _１ｔ.csv - 
 
     # output/modelos_urnas — ZIPs
-    "output/modelos_urnas/df_somente_criticas_2022.zip":     "19fYbaDtpftYMiBIxvHd8i8UFE9JJO-dk",
-    "output/modelos_urnas/df_somente_criticas_2018.zip":     "1G3_C7sUK0CK3GBCw0cMBi9z_1hqn4Fpz",
-    "output/modelos_urnas/df_com_atraso_2022.zip":           "1vTZlE8PdNkRorflEUXGcVBgCKS0JgrfY",
-    "output/modelos_urnas/df_com_atraso_2018.zip":           "10qwXJEpzKmGApKXakAcj6TUh3haMQcyf",
-    "output/modelos_urnas/df_completas_n0_2022.zip":         "1z4DEM-S7LEdFsKjplyMlFZy_lvv_hZEn",
-    "output/modelos_urnas/df_completas_n0_2018.zip":         "1E6FD2Ns-x7XvMWW1tSXUvrWw-a5OxSi4",
-    "output/modelos_urnas/df_completas_n1_2022.zip":         "15EOdRR4U7R8S6hUYzoOXXDWEryDR3U-G",
-    "output/modelos_urnas/df_completas_n1_2018.zip":         "1YYjjodQJia4BNXNC-7SZzu4nLv5Z2VZ3",
-    "output/modelos_urnas/df_completas_n2_2022.zip":         "1izQlOgQVErdxeycvwwTiyc5zUCbnWG6p",
-    "output/modelos_urnas/df_completas_n2_2018.zip":         "1TjaB0zqdasfYdHLSUnkO2pIsqqdBiVs_",
-    "output/modelos_urnas/df_completas_n3_2022.zip":         "1NDhbyzKwbM_7Ifw-buldnfslNksPdGGt",
-    "output/modelos_urnas/df_completas_n3_2018.zip":         "1RPUzwtuYyLg2tDGF_2Y9oIrh2cJMtR-q",
-    "output/modelos_urnas/df_completas_n4_2022.zip":         "11UX8SkPam27RPfR4LVTXkFUADwCDNgwu",
-    "output/modelos_urnas/df_completas_n4_2018.zip":         "1735yCJ3xnuV_q9wVm6-8h0IaBtCBnYxn",
+    "data/output/modelos_urnas/df_somente_criticas_2022.zip":     "19fYbaDtpftYMiBIxvHd8i8UFE9JJO-dk",
+    "data/output/modelos_urnas/df_somente_criticas_2018.zip":     "1G3_C7sUK0CK3GBCw0cMBi9z_1hqn4Fpz",
+    "data/output/modelos_urnas/df_com_atraso_2022.zip":           "1vTZlE8PdNkRorflEUXGcVBgCKS0JgrfY",
+    "data/output/modelos_urnas/df_com_atraso_2018.zip":           "10qwXJEpzKmGApKXakAcj6TUh3haMQcyf",
+    "data/output/modelos_urnas/df_completas_n0_2022.zip":         "1z4DEM-S7LEdFsKjplyMlFZy_lvv_hZEn",
+    "data/output/modelos_urnas/df_completas_n0_2018.zip":         "1E6FD2Ns-x7XvMWW1tSXUvrWw-a5OxSi4",
+    "data/output/modelos_urnas/df_completas_n1_2022.zip":         "15EOdRR4U7R8S6hUYzoOXXDWEryDR3U-G",
+    "data/output/modelos_urnas/df_completas_n1_2018.zip":         "1YYjjodQJia4BNXNC-7SZzu4nLv5Z2VZ3",
+    "data/output/modelos_urnas/df_completas_n2_2022.zip":         "1izQlOgQVErdxeycvwwTiyc5zUCbnWG6p",
+    "data/output/modelos_urnas/df_completas_n2_2018.zip":         "1TjaB0zqdasfYdHLSUnkO2pIsqqdBiVs_",
+    "data/output/modelos_urnas/df_completas_n3_2022.zip":         "1NDhbyzKwbM_7Ifw-buldnfslNksPdGGt",
+    "data/output/modelos_urnas/df_completas_n3_2018.zip":         "1RPUzwtuYyLg2tDGF_2Y9oIrh2cJMtR-q",
+    "data/output/modelos_urnas/df_completas_n4_2022.zip":         "11UX8SkPam27RPfR4LVTXkFUADwCDNgwu",
+    "data/output/modelos_urnas/df_completas_n4_2018.zip":         "1735yCJ3xnuV_q9wVm6-8h0IaBtCBnYxn",
 
     # data_map — CSVs geográficos (mesmos nomes de arquivo, só IDs novos)
-    "data_map/locais_criticos_2022.csv":                                       "1eP6u3-mzjNrxF2Amgh7W3dw-GvPFszl0",
-    "data_map/locais_criticos_2018.csv":                                       "1IjjgmD1jkrWxqGdkxBIhmm5ukQRzoH9V",
-    "data_map/df_locais_somente_criticos_2022.csv":                            "1lUtpFzT9lHA2K8unoJXriubdr0Ypl-f6",
-    "data_map/df_locais_somente_criticos_2018.csv":                            "1cJM7beYrmHU6EFLFMTYsRrcblgCV0dVF",
-    "data_map/df_locais_com_atraso_2022.csv":                                  "1ETeuYvmoMdwju5Z8uCfXQcrfb1OjCZeg",
-    "data_map/df_locais_com_atraso_2018.csv":                                  "1cEkKTqktQ05ysK-po7iql30zPb4B40vu",
-    "data_map/locais_votacao_consolidado_sc_2022.csv":                         "1a6SlRckVL-JMUiZ19xxcMLSjV7tl6PD-",
-    "data_map/locais_votacao_consolidado_sc_2018.csv":                         "1LvdOdjHzxZrGjKBYpYKCMgrIGgeFUoRX",
-    "data_map/df_locais_votacao_consolidado_somente_criticos_2022.csv":        "1o7X95aA_eyXSwxZi-Xj3xrmMV-PydXtd",
-    "data_map/df_locais_votacao_consolidado_somente_criticos_2018.csv":        "1CZ_5WlFJWrlhz1EheFn40mGvg2NR9T4S",
-    "data_map/df_locais_votacao_consolidado_com_atraso_2022.csv":              "1Rg4yQtcU3U102TBKP9VrGTWWasJ8NNi-",
-    "data_map/df_locais_votacao_consolidado_com_atraso_2018.csv":              "1D3JrXU16gm1L8ps9W4tm8jA6S4MkS8yy",
+    "data/data_map/locais_criticos_2022.csv":                                       "1eP6u3-mzjNrxF2Amgh7W3dw-GvPFszl0",
+    "data/data_map/locais_criticos_2018.csv":                                       "1IjjgmD1jkrWxqGdkxBIhmm5ukQRzoH9V",
+    "data/data_map/df_locais_somente_criticos_2022.csv":                            "1lUtpFzT9lHA2K8unoJXriubdr0Ypl-f6",
+    "data/data_map/df_locais_somente_criticos_2018.csv":                            "1cJM7beYrmHU6EFLFMTYsRrcblgCV0dVF",
+    "data/data_map/df_locais_com_atraso_2022.csv":                                  "1ETeuYvmoMdwju5Z8uCfXQcrfb1OjCZeg",
+    "data/data_map/df_locais_com_atraso_2018.csv":                                  "1cEkKTqktQ05ysK-po7iql30zPb4B40vu",
+    "data/data_map/locais_votacao_consolidado_sc_2022.csv":                         "1a6SlRckVL-JMUiZ19xxcMLSjV7tl6PD-",
+    "data/data_map/locais_votacao_consolidado_sc_2018.csv":                         "1LvdOdjHzxZrGjKBYpYKCMgrIGgeFUoRX",
+    "data/data_map/df_locais_votacao_consolidado_somente_criticos_2022.csv":        "1o7X95aA_eyXSwxZi-Xj3xrmMV-PydXtd",
+    "data/data_map/df_locais_votacao_consolidado_somente_criticos_2018.csv":        "1CZ_5WlFJWrlhz1EheFn40mGvg2NR9T4S",
+    "data/data_map/df_locais_votacao_consolidado_com_atraso_2022.csv":              "1Rg4yQtcU3U102TBKP9VrGTWWasJ8NNi-",
+    "data/data_map/df_locais_votacao_consolidado_com_atraso_2018.csv":              "1D3JrXU16gm1L8ps9W4tm8jA6S4MkS8yy",
 }
 
 
