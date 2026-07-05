@@ -1,16 +1,18 @@
 import gc
 import os
+import re
 
 import requests
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as _components
 
 from src.analysis import (
     FILTER_COM_ATRASO,
+    FILTER_CONTINGENCIA,
     FILTER_SOMENTE_CRITICAS,
     STATUS_DETALHES,
     STATUS_OPCOES,
-    URN_MODELS,
     UrnasCriticasAnalysis,
 )
 from src.tab_criticidade import render_tab_criticidade
@@ -28,13 +30,13 @@ def _nivel_key(status_filter):
 DATA_CONFIG = {
     "2022": {
         "niveis": {
-            FILTER_SOMENTE_CRITICAS: "data/output/nivel_criticidade/df_somente_criticas_2022.csv",
-            FILTER_COM_ATRASO:       "data/output/nivel_criticidade/df_com_atraso_2022.csv",
-            0:    "data/output/nivel_criticidade/df_critica_n0_2022.csv",
-            1:    "data/output/nivel_criticidade/df_critica_n1_2022.csv",
-            2:    "data/output/nivel_criticidade/df_critica_n2_2022.csv",
-            3:    "data/output/nivel_criticidade/df_critica_n3_2022.csv",
-            4:    "data/output/nivel_criticidade/df_critica_n4_2022.csv",
+            FILTER_SOMENTE_CRITICAS: "data/output/2022/por_status/urnas_criticas_2022_1t.csv",
+            FILTER_COM_ATRASO:       "data/output/2022/por_status/urnas_com_atraso_2022_1t.csv",
+            0:    "data/output/2022/por_status/urnas_status_0_2022_1t.csv",
+            1:    "data/output/2022/por_status/urnas_status_1_2022_1t.csv",
+            2:    "data/output/2022/por_status/urnas_status_2_2022_1t.csv",
+            3:    "data/output/2022/por_status/urnas_status_3_2022_1t.csv",
+            4:    "data/output/2022/por_status/urnas_status_4_2022_1t.csv",
         },
         "modelos_urnas": {
             FILTER_SOMENTE_CRITICAS: "data/output/modelos_urnas/df_somente_criticas_2022.zip",
@@ -45,16 +47,17 @@ DATA_CONFIG = {
             3:    "data/output/modelos_urnas/df_completas_n3_2022.zip",
             4:    "data/output/modelos_urnas/df_completas_n4_2022.zip",
         },
+        "contingencia": "data/output/2022/por_status/urnas_contingenca_2022.csv",
     },
     "2018": {
         "niveis": {
-            FILTER_SOMENTE_CRITICAS: "data/output/nivel_criticidade/df_somente_criticas_2018.csv",
-            FILTER_COM_ATRASO:       "data/output/nivel_criticidade/df_com_atraso_2018.csv",
-            0:    "data/output/nivel_criticidade/df_critica_n0_2018.csv",
-            1:    "data/output/nivel_criticidade/df_critica_n1_2018.csv",
-            2:    "data/output/nivel_criticidade/df_critica_n2_2018.csv",
-            3:    "data/output/nivel_criticidade/df_critica_n3_2018.csv",
-            4:    "data/output/nivel_criticidade/df_critica_n4_2018.csv",
+            FILTER_SOMENTE_CRITICAS: "data/output/2018/por_status/urnas_criticas_2018_1t.csv",
+            FILTER_COM_ATRASO:       "data/output/2018/por_status/urnas_com_atraso_2018_1t.csv",
+            0:    "data/output/2018/por_status/urnas_status_0_2018_1t.csv",
+            1:    "data/output/2018/por_status/urnas_status_1_2018_1t.csv",
+            2:    "data/output/2018/por_status/urnas_status_2_2018_1t.csv",
+            3:    "data/output/2018/por_status/urnas_status_3_2018_1t.csv",
+            4:    "data/output/2018/por_status/urnas_status_4_2018_1t.csv",
         },
         "modelos_urnas": {
             FILTER_SOMENTE_CRITICAS: "data/output/modelos_urnas/df_somente_criticas_2018.zip",
@@ -65,6 +68,7 @@ DATA_CONFIG = {
             3:    "data/output/modelos_urnas/df_completas_n3_2018.zip",
             4:    "data/output/modelos_urnas/df_completas_n4_2018.zip",
         },
+        "contingencia": "data/output/2018/por_status/urnas_contingenca_2018.csv",
     },
 }
 
@@ -332,6 +336,58 @@ st.markdown("""
             border-color: var(--color-brand) !important;
             box-shadow: 0 2px 8px rgba(0,114,178,0.08) !important;
         }
+
+        /* ── Checkbox estilizado (filtro de contingência) ─────────────── */
+        .stCheckbox > label {
+            font-family: var(--font-sans) !important;
+            font-size: 0.85rem !important;
+            font-weight: 600 !important;
+            color: var(--color-ink-mid) !important;
+        }
+        .stCheckbox > label:hover {
+            color: var(--color-brand) !important;
+        }
+
+        /* ── Métricas em linha ────────────────────────────────────────── */
+        .metric-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+        }
+        .metric-row > div {
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .metric-row > div:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(15,23,42,0.08);
+        }
+
+        /* ── Scrollbar customizada ────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* ── Reduzir espaçamento entre seções ─────────────────────────── */
+        .element-container { margin-bottom: 0.3rem !important; }
+
+        /* ── Moldura dos gráficos — dá destaque visual a todo st.plotly_chart ── */
+        .stPlotlyChart,
+        div[data-testid="stPlotlyChart"] {
+            background: var(--color-surface) !important;
+            border: 1px solid var(--color-border) !important;
+            border-radius: var(--radius-card) !important;
+            box-shadow: var(--shadow-card) !important;
+            padding: 0.85rem 0.85rem 0.35rem !important;
+            margin-bottom: 1rem !important;
+            transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+        .stPlotlyChart:hover,
+        div[data-testid="stPlotlyChart"]:hover {
+            box-shadow: var(--shadow-hover) !important;
+            border-color: #cbd5e1 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -407,7 +463,6 @@ def _download_file(local_path: str, file_id: str) -> None:
     content_type = resp.headers.get("Content-Type", "")
     if "text/html" in content_type:
         # Extrai o token do campo confirm= na página HTML
-        import re
         token_match = re.search(r'confirm=([0-9A-Za-z_\-]+)', resp.text)
         if token_match:
             token = token_match.group(1)
@@ -440,7 +495,7 @@ def _download_and_extract_data():
         return
 
     erros: list[str] = []
-    with st.spinner("⏳ Preparando o sistema pela primeira vez. Isso pode levar alguns instantes…"):
+    with st.spinner("Preparando o sistema pela primeira vez. Isso pode levar alguns instantes…"):
         for local_path in arquivos_faltando:
             file_id = _DRIVE_FILES[local_path]
             nome    = os.path.basename(local_path)
@@ -451,7 +506,7 @@ def _download_and_extract_data():
 
     if erros:
         st.error(
-            "❌ Falha ao baixar os seguintes arquivos:\n\n"
+            "Falha ao baixar os seguintes arquivos:\n\n"
             + "\n".join(f"- {e}" for e in erros)
             + "\n\n**Verifique se todos os arquivos no Google Drive estão com permissão "
             "'Qualquer pessoa com o link → Visualizador'.**"
@@ -476,11 +531,38 @@ def _load_csv_cached(path: str) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False, max_entries=4, ttl=1800)
 def _count_rows(path: str) -> int:
+    """
+    Conta linhas de um CSV sem parsear o conteúdo — apenas itera bytes
+    contando newlines. Bem mais rápido e barato em memória do que
+    `pd.read_csv(usecols=[0])` para arquivos grandes (uso típico: 30 MB+).
+    """
     try:
-        df = pd.read_csv(path, sep=",", encoding="utf-8", usecols=[0])
-        return len(df)
+        # encoding fallback — a maioria dos CSVs do projeto é UTF-8,
+        # mas alguns vêm com BOM ou Latin-1. Em caso de erro, recorre
+        # ao pandas (lento mas robusto).
+        with open(path, "rb") as f:
+            # -1 porque a última linha pode ou não ter newline;
+            # Somamos 1 se o arquivo não terminar em newline.
+            count = sum(buf.count(b"\n") for buf in iter(lambda: f.read(1024 * 1024), b""))
+        # Se o arquivo não termina em \n, há uma linha extra.
+        # Verifica o último byte de forma barata.
+        with open(path, "rb") as f:
+            try:
+                f.seek(-1, os.SEEK_END)
+                if f.read(1) != b"\n":
+                    count += 1
+            except OSError:
+                # Arquivo vazio ou muito pequeno — mantém count como está
+                pass
+        # Subtrai 1 do cabeçalho (primeira linha), garantindo >= 0.
+        return max(count - 1, 0)
     except Exception:
-        return 0
+        # Fallback: método anterior (lê a 1ª coluna com pandas).
+        try:
+            df = pd.read_csv(path, sep=",", encoding="utf-8", usecols=[0])
+            return len(df)
+        except Exception:
+            return 0
 
 
 @st.cache_data(show_spinner=False, max_entries=2, ttl=600)
@@ -535,7 +617,6 @@ with col_filtros:
 
     with col_btn:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-        import streamlit.components.v1 as _components
 
         _items_html = ""
         for lvl, info in STATUS_DETALHES.items():
@@ -549,7 +630,7 @@ with col_filtros:
                 f'    <div style="font-size:13px;color:#6b7280;line-height:1.4;">{info["desc"]}</div>'
                 f'    <div style="font-size:12px;color:#9ca3af;margin-top:3px;'
                 f'                font-family:\'SF Mono\',\'Fira Code\',monospace;letter-spacing:0.01em;">'
-                f'      ⏱ {info["intervalo"]}</div>'
+                f'      {info["intervalo"]}</div>'
                 f'  </div>'
                 f'</div>'
             )
@@ -639,28 +720,50 @@ with col_filtros:
 
 # ── Validação e Carregamento de Dados ─────────────────────────────────────────
 cfg = DATA_CONFIG[ano_selecionado]
-nivel_path   = cfg["niveis"][_nivel_key(status_filter)]
-modelo_path  = cfg["modelos_urnas"][_nivel_key(status_filter)]
 
-for path_check, label in [(nivel_path, "Níveis"), (modelo_path, "Modelos")]:
-    if not os.path.exists(path_check):
-        st.error(f"Arquivo não encontrado ({label}): `{path_check}`")
+if status_filter == FILTER_CONTINGENCIA:
+    # Dataset de contingência, particionado por ano eleitoral (mesma lógica dos demais filtros).
+    contingencia_path = cfg["contingencia"]
+    if not os.path.exists(contingencia_path):
+        st.error(f"Arquivo não encontrado (Contingência): `{contingencia_path}`")
         st.stop()
 
-with st.spinner("Carregando dados..."):
-    df_secoes    = _load_csv_cached(nivel_path)
-    df_voter_log = _load_csv_cached(modelo_path)
+    with st.spinner("Carregando dados..."):
+        df_secoes    = _load_csv_cached(contingencia_path)
+        df_voter_log = df_secoes.copy()
 
-    n_all_path = cfg["niveis"][FILTER_SOMENTE_CRITICAS]
-    n_0_path   = cfg["niveis"][0]
+        n_all_path = cfg["niveis"][FILTER_SOMENTE_CRITICAS]
+        n_0_path   = cfg["niveis"][0]
+        count_criticas = _count_rows(n_all_path) if os.path.exists(n_all_path) else 0
+        count_n0       = _count_rows(n_0_path)   if os.path.exists(n_0_path)   else 0
+        total_secoes_global = count_criticas + count_n0
 
-    count_criticas = _count_rows(n_all_path) if os.path.exists(n_all_path) else 0
-    count_n0       = _count_rows(n_0_path)   if os.path.exists(n_0_path)   else 0
-    total_secoes_global = count_criticas + count_n0
+        estado_means: dict[str, float] = {}
+        if os.path.exists(n_all_path):
+            estado_means = _load_estado_means(n_all_path)
+else:
+    nivel_path   = cfg["niveis"][_nivel_key(status_filter)]
+    modelo_path  = cfg["modelos_urnas"][_nivel_key(status_filter)]
 
-    estado_means: dict[str, float] = {}
-    if status_filter is not None and os.path.exists(n_all_path):
-        estado_means = _load_estado_means(n_all_path)
+    for path_check, label in [(nivel_path, "Níveis"), (modelo_path, "Modelos")]:
+        if not os.path.exists(path_check):
+            st.error(f"Arquivo não encontrado ({label}): `{path_check}`")
+            st.stop()
+
+    with st.spinner("Carregando dados..."):
+        df_secoes    = _load_csv_cached(nivel_path)
+        df_voter_log = _load_csv_cached(modelo_path)
+
+        n_all_path = cfg["niveis"][FILTER_SOMENTE_CRITICAS]
+        n_0_path   = cfg["niveis"][0]
+
+        count_criticas = _count_rows(n_all_path) if os.path.exists(n_all_path) else 0
+        count_n0       = _count_rows(n_0_path)   if os.path.exists(n_0_path)   else 0
+        total_secoes_global = count_criticas + count_n0
+
+        estado_means: dict[str, float] = {}
+        if status_filter is not None and os.path.exists(n_all_path):
+            estado_means = _load_estado_means(n_all_path)
 
 analise = UrnasCriticasAnalysis.from_dataframes(
     df_2022=df_voter_log,
@@ -727,7 +830,7 @@ with k5:
     """, unsafe_allow_html=True)
 
 del overview
-gc.collect()
+# Não chamar gc.collect() aqui para não interferir com cache
 
 st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
 
