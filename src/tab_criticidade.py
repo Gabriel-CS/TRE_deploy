@@ -460,7 +460,7 @@ def _render_visao_geral(df: pd.DataFrame) -> None:
                     xaxis=dict(automargin=True),
                 )
                 info_card("Compara o número médio de timeouts de biometria e o tempo médio perdido com isso em cada nível de criticidade.")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 del m_timeout, fig
 
     with col_v2:
@@ -503,7 +503,7 @@ def _render_visao_geral(df: pd.DataFrame) -> None:
                     xaxis=dict(automargin=True),
                 )
                 info_card("Compara o tempo médio de inatividade do eleitor na urna entre os níveis de criticidade.")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 del m_inat, fig
 
     col_p1, col_p2 = st.columns(2)
@@ -529,7 +529,7 @@ def _render_visao_geral(df: pd.DataFrame) -> None:
                     height=350,
                 )
                 info_card("Mostra como o total de eleitores com deficiência (PCD) atendidos se distribui entre os níveis de criticidade.")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 del pcd_sum, fig
 
     with col_p2:
@@ -580,7 +580,7 @@ def _render_visao_geral(df: pd.DataFrame) -> None:
                     xaxis=dict(automargin=True),
                 )
                 info_card("Compara a média de teclas inválidas digitadas em cada nível de criticidade.")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 del m_teclas, fig
 
     gc.collect()
@@ -698,7 +698,7 @@ def _render_detalhamento_nivel(
                     xaxis=dict(automargin=True),
                 )
                 info_card("Mostra quantos eleitores de cada faixa etária votaram nas seções deste nível de criticidade.")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 del sums, fig
 
     with col_d2:
@@ -728,7 +728,7 @@ def _render_detalhamento_nivel(
                     xaxis=dict(automargin=True),
                 )
                 info_card("Mostra a distribuição de eleitores por grau de escolaridade nas seções deste nível de criticidade.")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 del sums_esc, fig
 
     # ── Proporção PCD ─────────────────────────────────────────────────────────
@@ -758,7 +758,7 @@ def _render_detalhamento_nivel(
                 height=400,
             )
             info_card("Mostra a proporção de eleitores PCD em relação ao total de votantes neste nível de criticidade.")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig, total_votos, qtd_pcd
 
     gc.collect()
@@ -918,7 +918,7 @@ def _render_estudo_caso_secao(df: pd.DataFrame, status_filter=None) -> None:
                 xaxis=dict(tickfont=dict(color="black", size=13)),
             )
             info_card("Mostra o tempo total acumulado por tipo de evento operacional registrado nesta seção.")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig
         else:
             st.info("Dados de ocorrências não disponíveis para esta seção.")
@@ -963,7 +963,7 @@ def _render_estudo_caso_secao(df: pd.DataFrame, status_filter=None) -> None:
                 xaxis=dict(tickfont=dict(color="black", size=13)),
             )
             info_card("Compara o tempo gasto com biometria e com teclas indevidas nesta seção específica.")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig
         else:
             st.info("Dados de tempo não disponíveis para esta seção.")
@@ -997,7 +997,7 @@ def _render_estudo_caso_secao(df: pd.DataFrame, status_filter=None) -> None:
             xaxis=dict(automargin=True),
         )
         info_card("Mostra quantos eleitores de cada faixa etária votaram nesta seção, com o percentual sobre o total.")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig, vals_idade
 
     with col4:
@@ -1025,7 +1025,7 @@ def _render_estudo_caso_secao(df: pd.DataFrame, status_filter=None) -> None:
             xaxis=dict(automargin=True),
         )
         info_card("Mostra a distribuição de eleitores por escolaridade nesta seção, com o percentual sobre o total.")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig, vals_esc
 
     # ── LINHA 3: Proporção PCD + Comparativo de Tempos ──────────────────────
@@ -1048,7 +1048,7 @@ def _render_estudo_caso_secao(df: pd.DataFrame, status_filter=None) -> None:
             height=350,
         )
         info_card("Mostra a proporção de eleitores PCD em relação ao total de votantes nesta seção.")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig, total_el, pcd
 
     with col6:
@@ -1124,7 +1124,7 @@ def _render_estudo_caso_secao(df: pd.DataFrame, status_filter=None) -> None:
                 ),
             )
             info_card("Compara os tempos operacionais desta seção com a média do estado para o mesmo nível de criticidade.")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig
         else:
             st.info("Dados insuficientes para comparativo de tempos.")
