@@ -47,7 +47,7 @@ DATA_CONFIG = {
             3:    "data/output/modelos_urnas/df_completas_n3_2022.zip",
             4:    "data/output/modelos_urnas/df_completas_n4_2022.zip",
         },
-        "contingencia": "data/output/2022/por_status/urnas_contingenca_2022.csv",
+        "contingencia": "data/output/nivel_criticidade/2022/por_status/urnas_contingenca_2022.csv",
     },
     "2018": {
         "niveis": {
@@ -68,7 +68,7 @@ DATA_CONFIG = {
             3:    "data/output/modelos_urnas/df_completas_n3_2018.zip",
             4:    "data/output/modelos_urnas/df_completas_n4_2018.zip",
         },
-        "contingencia": "data/output/2018/por_status/urnas_contingenca_2018.csv",
+        "contingencia": "data/output/nivel_criticidade/2018/por_status/urnas_contingenca_2018.csv",
     },
 }
 
@@ -446,8 +446,8 @@ _DRIVE_FILES: dict[str, str] = {
 
     # datasets auxiliares
     "data/datasets/Tabela_Configuracoes.csv":                                       "1uOjGX6_R1_K-4CAzpUOpPLOCAXsPNeyi",
-    "data/output/nivel_criticidade/2018/por_status/urnas_contingenca_2022.csv":     "1Eoo8gDDCbL514tY32Dm1vhDYzFgJFfHF",
-    "data/output/nivel_criticidade/2018/por_status/urnas_contingenca_2018.csv":     "1g7IPdIXWSHxOns3mJlclXWFBTT5QqxVh",
+    "data/output/nivel_criticidade/2018/por_status/urnas_contingencia_2022.csv":     "1Eoo8gDDCbL514tY32Dm1vhDYzFgJFfHF",
+    "data/output/nivel_criticidade/2018/por_status/urnas_contingencia_2018.csv":     "1g7IPdIXWSHxOns3mJlclXWFBTT5QqxVh",
 }
 
 
