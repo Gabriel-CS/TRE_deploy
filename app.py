@@ -32,11 +32,11 @@ DATA_CONFIG = {
         "niveis": {
             FILTER_SOMENTE_CRITICAS: "data/output/2022/por_status/urnas_criticas_2022_1t.csv",
             FILTER_COM_ATRASO:       "data/output/2022/por_status/urnas_com_atraso_2022_1t.csv",
-            0:    "data/output/2022/por_status/urnas_status_0_2022_1t.csv",
-            1:    "data/output/2022/por_status/urnas_status_1_2022_1t.csv",
-            2:    "data/output/2022/por_status/urnas_status_2_2022_1t.csv",
-            3:    "data/output/2022/por_status/urnas_status_3_2022_1t.csv",
-            4:    "data/output/2022/por_status/urnas_status_4_2022_1t.csv",
+            0:    "data/output/nivel_criticidade/2022/por_status/urnas_status_0_2022_1t.csv",
+            1:    "data/output/nivel_criticidade/2022/por_status/urnas_status_1_2022_1t.csv",
+            2:    "data/output/nivel_criticidade/2022/por_status/urnas_status_2_2022_1t.csv",
+            3:    "data/output/nivel_criticidade/2022/por_status/urnas_status_3_2022_1t.csv",
+            4:    "data/output/nivel_criticidade/2022/por_status/urnas_status_4_2022_1t.csv",
         },
         "modelos_urnas": {
             FILTER_SOMENTE_CRITICAS: "data/output/modelos_urnas/df_somente_criticas_2022.zip",
@@ -53,11 +53,11 @@ DATA_CONFIG = {
         "niveis": {
             FILTER_SOMENTE_CRITICAS: "data/output/2018/por_status/urnas_criticas_2018_1t.csv",
             FILTER_COM_ATRASO:       "data/output/2018/por_status/urnas_com_atraso_2018_1t.csv",
-            0:    "data/output/2018/por_status/urnas_status_0_2018_1t.csv",
-            1:    "data/output/2018/por_status/urnas_status_1_2018_1t.csv",
-            2:    "data/output/2018/por_status/urnas_status_2_2018_1t.csv",
-            3:    "data/output/2018/por_status/urnas_status_3_2018_1t.csv",
-            4:    "data/output/2018/por_status/urnas_status_4_2018_1t.csv",
+            0:    "data/output/nivel_criticidade/2018/por_status/urnas_status_0_2018_1t.csv",
+            1:    "data/output/nivel_criticidade/2018/por_status/urnas_status_1_2018_1t.csv",
+            2:    "data/output/nivel_criticidade/2018/por_status/urnas_status_2_2018_1t.csv",
+            3:    "data/output/nivel_criticidade/2018/por_status/urnas_status_3_2018_1t.csv",
+            4:    "data/output/nivel_criticidade/2018/por_status/urnas_status_4_2018_1t.csv",
         },
         "modelos_urnas": {
             FILTER_SOMENTE_CRITICAS: "data/output/modelos_urnas/df_somente_criticas_2018.zip",
@@ -399,20 +399,20 @@ _DRIVE_FILES: dict[str, str] = {
     # output/nivel_criticidade — CSVs (pipeline novo renomeou para
     # urnas_status_X / urnas_com_atraso / urnas_criticas, mas os caminhos
     # locais/chaves deste dict foram mantidos como estavam)
-    "data/output/nivel_criticidade/df_somente_criticas_2022.csv": "1gMB8nvzSF5urD8eAyuAKOHJR7OWIpRKQ",  # urnas_criticas_2022_1t.csv
-    "data/output/nivel_criticidade/df_somente_criticas_2018.csv": "1VCGapqyYaUj9Wygzvj_LxnbLbJz0r6yK",  # urnas_criticas_2018_1t.csv
-    "data/output/nivel_criticidade/df_com_atraso_2022.csv":       "11BxyMBhkOnMj5iEsupd9DXfoLSA_TJoU",  # urnas_com_atraso_2022_1t.csv
-    "data/output/nivel_criticidade/df_com_atraso_2018.csv":       "1VCv8Wu_TvvTa-BnGBj716QT0WPg2Fy9v",  # urnas_com_atraso_2018_1t.csv
-    "data/output/nivel_criticidade/df_critica_n0_2022.csv":       "1lXuCD9A0oGRWU57-CtMyna52d2heG7MT",  # urnas_status_0_2022_1t.csv
-    "data/output/nivel_criticidade/df_critica_n0_2018.csv":       "1e29Cvd5ADzAWpjIgxK-pJglLze2fBzyi",  # urnas_status_0_2018_1t.csv
-    "data/output/nivel_criticidade/df_critica_n1_2022.csv":       "1yL9GCYtj1-ammAxYpuHogI1QYkhoR9DS",  # urnas_status_1_2022_1t.csv
-    "data/output/nivel_criticidade/df_critica_n1_2018.csv":       "1fq4VHGpbiwYgkXBwobjRSrO7me34jP44",  # urnas_status_1_2018_1t.csv
-    "data/output/nivel_criticidade/df_critica_n2_2022.csv":       "1cy1jYFVXNL0DdZQiheT_25xsuFCRbL_7",  # urnas_status_2_2022_1t.csv
-    "data/output/nivel_criticidade/df_critica_n2_2018.csv":       "1DmBIUZxQwSNYSwFGVNCxxuYdRU3wMQv9",  # urnas_status_2_2018_1t.csv
-    "data/output/nivel_criticidade/df_critica_n3_2022.csv":       "1dPA13u1ISXC8QQntzNl_mS5QOTlZKS5G",  # urnas_status_3_2022_1t.csv
-    "data/output/nivel_criticidade/df_critica_n3_2018.csv":       "1H8OIYLvIfJi6UfgeRgWxjusby13ul-nG",  # urnas_status_3_2018_1t.csv
-    "data/output/nivel_criticidade/df_critica_n4_2022.csv":       "1WqsoBmMOd1a4BGi9SokSrCyacviYmp1y",  # urnas_status_4_2022_1t.csv
-    "data/output/nivel_criticidade/df_critica_n4_2018.csv":       "13Xn_9naHkAah4o62vic3NF__5gYm6d3g",  # urnas_status_4_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_criticas_2022_1t.csv": "1gMB8nvzSF5urD8eAyuAKOHJR7OWIpRKQ",  # urnas_criticas_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_criticas_2018_1t.csv": "1VCGapqyYaUj9Wygzvj_LxnbLbJz0r6yK",  # urnas_criticas_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_com_atraso_2022.csv":       "11BxyMBhkOnMj5iEsupd9DXfoLSA_TJoU",  # urnas_com_atraso_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_com_atraso_2018.csv":       "1VCv8Wu_TvvTa-BnGBj716QT0WPg2Fy9v",  # urnas_com_atraso_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_status_0_2022.csv":       "1lXuCD9A0oGRWU57-CtMyna52d2heG7MT",  # urnas_status_0_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_status_0_2018.csv":       "1e29Cvd5ADzAWpjIgxK-pJglLze2fBzyi",  # urnas_status_0_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_status_1_2022.csv":       "1yL9GCYtj1-ammAxYpuHogI1QYkhoR9DS",  # urnas_status_1_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_status_1_2018.csv":       "1fq4VHGpbiwYgkXBwobjRSrO7me34jP44",  # urnas_status_1_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_status_2_2022.csv":       "1cy1jYFVXNL0DdZQiheT_25xsuFCRbL_7",  # urnas_status_2_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_status_2_2018.csv":       "1DmBIUZxQwSNYSwFGVNCxxuYdRU3wMQv9",  # urnas_status_2_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_status_3_2022.csv":       "1dPA13u1ISXC8QQntzNl_mS5QOTlZKS5G",  # urnas_status_3_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_status_3_2018.csv":       "1H8OIYLvIfJi6UfgeRgWxjusby13ul-nG",  # urnas_status_3_2018_1t.csv
+    "data/output/nivel_criticidade/2022/urnas_status_4_2022.csv":       "1WqsoBmMOd1a4BGi9SokSrCyacviYmp1y",  # urnas_status_4_2022_1t.csv
+    "data/output/nivel_criticidade/2018/urnas_status_4_2018.csv":       "13Xn_9naHkAah4o62vic3NF__5gYm6d3g",  # urnas_status_4_2018_1t.csv
 
     # output/modelos_urnas — ZIPs
     "data/output/modelos_urnas/df_somente_criticas_2022.zip":     "19fYbaDtpftYMiBIxvHd8i8UFE9JJO-dk",
