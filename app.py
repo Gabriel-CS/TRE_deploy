@@ -488,7 +488,14 @@ def _download_file(local_path: str, file_id: str) -> None:
     ultima_excecao: Exception | None = None
     for tentativa in range(1, 4):  # até 3 tentativas — cobre falhas transitórias/rate limit
         try:
-            gdown.download(id=file_id, output=local_path, quiet=True, fuzzy=True)
+            try:
+                gdown.download(id=file_id, output=local_path, quiet=True, fuzzy=True)
+            except TypeError:
+                # Versões mais antigas do gdown (<4.6) não têm o parâmetro
+                # 'fuzzy'. 'fuzzy' só é necessário quando se passa uma URL
+                # completa do Drive; como aqui já usamos 'id' diretamente,
+                # é seguro cair para a chamada sem esse argumento.
+                gdown.download(id=file_id, output=local_path, quiet=True)
             if _is_valid_download(local_path):
                 return
             raise RuntimeError(
