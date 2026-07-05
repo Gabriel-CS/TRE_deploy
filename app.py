@@ -415,25 +415,20 @@ _DRIVE_FILES: dict[str, str] = {
     "data/output/nivel_criticidade/df_critica_n4_2018.csv":       "13Xn_9naHkAah4o62vic3NF__5gYm6d3g",  # urnas_status_4_2018_1t.csv
 
     # output/modelos_urnas — ZIPs
-    # ATENÇÃO (05/07/2026): a pasta "modelos_urnas" no Drive está VAZIA e não
-    # há equivalente em data_aux. IDs abaixo são os ANTIGOS, mantidos como
-    # placeholder para não quebrar o dict — provavelmente apontam para dados
-    # desatualizados. Assim que você regenerar e subir esses 14 arquivos, me
-    # avise para eu trocar os IDs.
-    "data/output/modelos_urnas/df_somente_criticas_2022.zip":     "1HHAzcqxA6xL9Qb9jFd7RmDJ7RP-pstix",
-    "data/output/modelos_urnas/df_somente_criticas_2018.zip":     "1dHbV3prK7IfAcU5qzqML3patGV4abMU3",
-    "data/output/modelos_urnas/df_com_atraso_2022.zip":           "1IOlrjbdxYBbsEAGsOxG2KZfaWNttn5zP",
-    "data/output/modelos_urnas/df_com_atraso_2018.zip":           "1L_CzZStuDAAeMUkvL-aALoiIstafo9Ko",
-    "data/output/modelos_urnas/df_completas_n0_2022.zip":         "1YhvGGHM9u-iL1fvy6lYhAa4o7jB2336d",
-    "data/output/modelos_urnas/df_completas_n0_2018.zip":         "138NORoY6MfawVOv8aNK3kLIl9GaRJrVM",
-    "data/output/modelos_urnas/df_completas_n1_2022.zip":         "1Rfn3TLhiv-rrpYgkdA5L0txqZhHuOtqN",
-    "data/output/modelos_urnas/df_completas_n1_2018.zip":         "1r4vfx93HjS6iSgIEj16a46TfuuIuCle_",
-    "data/output/modelos_urnas/df_completas_n2_2022.zip":         "19diBbxQY6Y6Lml1Ux6NDERHgjz5fAEko",
-    "data/output/modelos_urnas/df_completas_n2_2018.zip":         "1u77EX550FooLu0zjttWvtzvkiBe6IvON",
-    "data/output/modelos_urnas/df_completas_n3_2022.zip":         "1-fSU69UxV3ffEv6_0nlAWKvzmy1kljqX",
-    "data/output/modelos_urnas/df_completas_n3_2018.zip":         "1Ry_i8Tv6ESnBqqmiEl4GYU_VXfYFmw48",
-    "data/output/modelos_urnas/df_completas_n4_2022.zip":         "1Ct4Djb1Nl4kyUg0oNB2rNT1CR5CS9X4m",
-    "data/output/modelos_urnas/df_completas_n4_2018.zip":         "126tL7V2Dkd2SNm59BCaNhBi4Zg7qi2As",
+    "data/output/modelos_urnas/df_somente_criticas_2022.zip":     "19fYbaDtpftYMiBIxvHd8i8UFE9JJO-dk",
+    "data/output/modelos_urnas/df_somente_criticas_2018.zip":     "1G3_C7sUK0CK3GBCw0cMBi9z_1hqn4Fpz",
+    "data/output/modelos_urnas/df_com_atraso_2022.zip":           "1vTZlE8PdNkRorflEUXGcVBgCKS0JgrfY",
+    "data/output/modelos_urnas/df_com_atraso_2018.zip":           "10qwXJEpzKmGApKXakAcj6TUh3haMQcyf",
+    "data/output/modelos_urnas/df_completas_n0_2022.zip":         "1z4DEM-S7LEdFsKjplyMlFZy_lvv_hZEn",
+    "data/output/modelos_urnas/df_completas_n0_2018.zip":         "1E6FD2Ns-x7XvMWW1tSXUvrWw-a5OxSi4",
+    "data/output/modelos_urnas/df_completas_n1_2022.zip":         "15EOdRR4U7R8S6hUYzoOXXDWEryDR3U-G",
+    "data/output/modelos_urnas/df_completas_n1_2018.zip":         "1YYjjodQJia4BNXNC-7SZzu4nLv5Z2VZ3",
+    "data/output/modelos_urnas/df_completas_n2_2022.zip":         "1izQlOgQVErdxeycvwwTiyc5zUCbnWG6p",
+    "data/output/modelos_urnas/df_completas_n2_2018.zip":         "1TjaB0zqdasfYdHLSUnkO2pIsqqdBiVs_",
+    "data/output/modelos_urnas/df_completas_n3_2022.zip":         "1NDhbyzKwbM_7Ifw-buldnfslNksPdGGt",
+    "data/output/modelos_urnas/df_completas_n3_2018.zip":         "1RPUzwtuYyLg2tDGF_2Y9oIrh2cJMtR-q",
+    "data/output/modelos_urnas/df_completas_n4_2022.zip":         "11UX8SkPam27RPfR4LVTXkFUADwCDNgwu",
+    "data/output/modelos_urnas/df_completas_n4_2018.zip":         "1735yCJ3xnuV_q9wVm6-8h0IaBtCBnYxn",
 
     # data_map — CSVs geográficos (mesmos nomes de arquivo, só IDs novos)
     "data/data_map/locais_criticos_2022.csv":                                       "1eP6u3-mzjNrxF2Amgh7W3dw-GvPFszl0",
