@@ -155,7 +155,7 @@ def _render_distribuicao(analise) -> None:
             "O rótulo de cada barra traz também o percentual que ela representa "
             "no total geral de seções."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -176,7 +176,7 @@ def _render_distribuicao(analise) -> None:
             "modelo de urna. O número no centro é o total geral de seções somando "
             "todos os modelos."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig, df_donut
 
     del dist
@@ -234,7 +234,7 @@ def _render_tempos_medios(analise) -> None:
             "por eleitor de cada modelo de urna. A altura total da barra é o "
             "tempo médio operacional completo daquele modelo."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -260,7 +260,7 @@ def _render_tempos_medios(analise) -> None:
                 "Autenticação e Inatividade de todos os modelos). A barra cinza "
                 "de fundo indica a escala máxima do gráfico."
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig
         del df_gauge
 
@@ -299,7 +299,7 @@ def _render_falhas_biometricas(analise) -> None:
             "total de votantes). A linha tracejada marca a média geral entre "
             "os modelos com solicitação de biometria."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col_bio2:
@@ -341,7 +341,7 @@ def _render_falhas_biometricas(analise) -> None:
                 "Do total de falhas biométricas registradas (somando todos os "
                 "modelos), esta fatia mostra quanto cada modelo concentra."
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig, df_falhas
         elif bio_cols_ausentes:
             st.info(
@@ -376,7 +376,7 @@ def _render_inatividade(analise) -> None:
             "quanto mais longa, mais variável é o tempo de inatividade entre "
             "os eleitores daquele modelo."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -400,7 +400,7 @@ def _render_inatividade(analise) -> None:
                 "inatividade acumulado (soma do tempo médio de inatividade de "
                 "todos os modelos), somando 100% entre os modelos exibidos."
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig, df_inat
 
     del inat
@@ -428,7 +428,7 @@ def _render_teclas_indevidas(analise) -> None:
             "total de teclas digitadas nos votos registrados em cada modelo de "
             "urna."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -461,7 +461,7 @@ def _render_teclas_indevidas(analise) -> None:
                 "Do total de teclas indevidas registradas somando todos os "
                 "modelos, esta fatia mostra quanto cada modelo concentra."
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig, df_teclas
         elif "n_teclas_inv" not in analise.df_log.columns:
             st.info(
@@ -494,7 +494,7 @@ def _render_escolaridade(analise) -> None:
             "cada modelo se distribuem entre os níveis de escolaridade. "
             "Passe o mouse sobre um segmento para ver o nível e o percentual."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -520,7 +520,7 @@ def _render_escolaridade(analise) -> None:
                 "fundamental incompleto) em relação ao total de eleitores "
                 "atendidos por cada modelo de urna."
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             del fig
         del df_low
 
@@ -549,7 +549,7 @@ def _render_faixa_etaria(analise) -> None:
             "cada modelo se distribuem entre as faixas etárias. Passe o "
             "mouse sobre um segmento para ver a faixa e o percentual."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -564,7 +564,7 @@ def _render_faixa_etaria(analise) -> None:
             "Proporção de eleitores idosos (60 anos ou mais) em relação ao "
             "total de eleitores atendidos por cada modelo de urna."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     del age, elderly
@@ -591,7 +591,7 @@ def _render_pcd(analise) -> None:
             "Quantidade absoluta de eleitores com deficiência (PCD) atendidos "
             "por cada modelo de urna."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     with col2:
@@ -606,7 +606,7 @@ def _render_pcd(analise) -> None:
             "urna (diferente do gráfico ao lado, que mostra a quantidade "
             "absoluta)."
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         del fig
 
     del pcd
