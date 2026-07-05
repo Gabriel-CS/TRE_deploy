@@ -411,8 +411,8 @@ _DRIVE_FILES: dict[str, str] = {
     "data/output/nivel_criticidade/2018/por_status/urnas_status_2_2018_1t.csv":       "1DmBIUZxQwSNYSwFGVNCxxuYdRU3wMQv9",  # urnas_status_2_2018_1t.csv
     "data/output/nivel_criticidade/2022/por_status/urnas_status_3_2022_1t.csv":       "1dPA13u1ISXC8QQntzNl_mS5QOTlZKS5G",  # urnas_status_3_2022_1t.csv
     "data/output/nivel_criticidade/2018/por_status/urnas_status_3_2018_1t.csv":       "1H8OIYLvIfJi6UfgeRgWxjusby13ul-nG",  # urnas_status_3_2018_1t.csv
-    "data/output/nivel_criticidade/2022/por_status/urnas_status_4_202₂ _１ｔ.csv":       "1WqsoBmMOd1a4BGi9SokSrCyacviYmp１y",  # urnas_status_4_２０２２_１ｔ.csv
-    "data/output/nivel_criticidade/20₁₈/por_status/urnas_status_4_₂₀₁₈ _１ｔ.csv":       "₁₃Xn₉naHkAah4o6₂vic3NF__5gYm6d3g",  # urnas_status_4_２₀₁₈ _１ｔ.csv - 
+    "data/output/nivel_criticidade/2022/por_status/urnas_status_4_2022_1t.csv":       "1WqsoBmMOd1a4BGi9SokSrCyacviYmp1y",  # urnas_status_4_２０２２_１ｔ.csv
+    "data/output/nivel_criticidade/2018/por_status/urnas_status_4_2018_1t.csv":       "13Xn9naHkAah4o62vic3NF__5gYm6d3g",  # urnas_status_4_２０₁₈ _１ｔ.csv - 
 
     # output/modelos_urnas — ZIPs
     "data/output/modelos_urnas/df_somente_criticas_2022.zip":     "19fYbaDtpftYMiBIxvHd8i8UFE9JJO-dk",
@@ -443,7 +443,7 @@ _DRIVE_FILES: dict[str, str] = {
     "data/data_map/df_locais_votacao_consolidado_somente_criticos_2018.csv":        "1CZ_5WlFJWrlhz1EheFn40mGvg2NR9T4S",
     "data/data_map/df_locais_votacao_consolidado_com_atraso_2022.csv":              "1Rg4yQtcU3U102TBKP9VrGTWWasJ8NNi-",
     "data/data_map/df_locais_votacao_consolidado_com_atraso_2018.csv":              "1D3JrXU16gm1L8ps9W4tm8jA6S4MkS8yy",
-    "data/datasets/Tabela_Configuracoes.csv": "1uOjGX6_R1_K-4CAzpUOpPLOCAXsPNeyi"
+    "data/datasets/Tabela_Configuracoes.csv":                                       "1uOjGX6_R1_K-4CAzpUOpPLOCAXsPNeyi"
 }
 
 
