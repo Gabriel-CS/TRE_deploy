@@ -30,8 +30,8 @@ def _nivel_key(status_filter):
 DATA_CONFIG = {
     "2022": {
         "niveis": {
-            FILTER_SOMENTE_CRITICAS: "data/output/2022/por_status/urnas_criticas_2022_1t.csv",
-            FILTER_COM_ATRASO:       "data/output/2022/por_status/urnas_com_atraso_2022_1t.csv",
+            FILTER_SOMENTE_CRITICAS: "data/output/nivel_criticidade/2022/por_status/urnas_criticas_2022_1t.csv",
+            FILTER_COM_ATRASO:       "data/output/nivel_criticidade/2022/por_status/urnas_com_atraso_2022_1t.csv",
             0:    "data/output/nivel_criticidade/2022/por_status/urnas_status_0_2022_1t.csv",
             1:    "data/output/nivel_criticidade/2022/por_status/urnas_status_1_2022_1t.csv",
             2:    "data/output/nivel_criticidade/2022/por_status/urnas_status_2_2022_1t.csv",
@@ -51,8 +51,8 @@ DATA_CONFIG = {
     },
     "2018": {
         "niveis": {
-            FILTER_SOMENTE_CRITICAS: "data/output/2018/por_status/urnas_criticas_2018_1t.csv",
-            FILTER_COM_ATRASO:       "data/output/2018/por_status/urnas_com_atraso_2018_1t.csv",
+            FILTER_SOMENTE_CRITICAS: "data/output/nivel_criticidade/2018/por_status/urnas_criticas_2018_1t.csv",
+            FILTER_COM_ATRASO:       "data/output/nivel_criticidade/2018/por_status/urnas_com_atraso_2018_1t.csv",
             0:    "data/output/nivel_criticidade/2018/por_status/urnas_status_0_2018_1t.csv",
             1:    "data/output/nivel_criticidade/2018/por_status/urnas_status_1_2018_1t.csv",
             2:    "data/output/nivel_criticidade/2018/por_status/urnas_status_2_2018_1t.csv",
