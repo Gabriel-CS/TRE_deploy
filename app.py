@@ -446,8 +446,8 @@ _DRIVE_FILES: dict[str, str] = {
 
     # datasets auxiliares
     "data/datasets/Tabela_Configuracoes.csv":                                       "1uOjGX6_R1_K-4CAzpUOpPLOCAXsPNeyi",
-    "data/datasets/2022/urnas_completas_2022_1t.csv":                               "1qx96JudyV3QiVy7D89zZ3EE59ASL-jS_",
-    "data/datasets/2018/urnas_completas_2018_1t.csv":                               "1NQszIrXahky40obQZ6EnCofTQvopJUUj",
+    "data/output/nivel_criticidade/2018/por_status/urnas_contingenca_2022.csv":     "1Eoo8gDDCbL514tY32Dm1vhDYzFgJFfHF",
+    "data/output/nivel_criticidade/2018/por_status/urnas_contingenca_2018.csv":     "1g7IPdIXWSHxOns3mJlclXWFBTT5QqxVh",
 }
 
 
