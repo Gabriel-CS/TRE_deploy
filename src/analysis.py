@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -8,11 +7,13 @@ import pandas as pd
 # ──────────────────────────────────────────────────────────────────────────────
 FILTER_SOMENTE_CRITICAS = "Somente criticas"
 FILTER_COM_ATRASO = "Com atraso"
+FILTER_CONTINGENCIA = "Urnas em contingencia"
 
 # Mantém exatamente as opções visuais do seu Selectbox (Imagem 2)
 STATUS_OPCOES: dict[str, str | int] = {
-    "Somente criticas":     FILTER_SOMENTE_CRITICAS,
-    "Com atraso":           FILTER_COM_ATRASO,
+    "Somente criticas":       FILTER_SOMENTE_CRITICAS,
+    "Com atraso":             FILTER_COM_ATRASO,
+    "Urnas em Contingência":  FILTER_CONTINGENCIA,
     "Nível 0 — Sem Atraso": 0,
     "Nível 1 — Normal": 1,
     "Nível 2 — Atenção": 2,
@@ -134,7 +135,6 @@ GRUPOS_ETARIOS: dict[str, list[str]] = {
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _normalizar_colunas_zona_secao(df: pd.DataFrame) -> pd.DataFrame:
-    import warnings
     cols_upper = {c.upper().strip().replace(" ", "_"): c for c in df.columns}
     candidatos = {
         "NR_ZONA":  ["NR_ZONA", "ZONA", "COD_ZONA", "CD_ZONA", "NUM_ZONA", "NR_ZONA_ELEITORAL", "ZONA_ELEITORAL"],
@@ -233,7 +233,6 @@ class UrnasCriticasAnalysis:
         df_completas: pd.DataFrame,
         prefiltered: bool = False,
     ) -> None:
-        import warnings
         df_completas = _normalizar_colunas_zona_secao(df_completas)
         df_2022 = _normalizar_colunas_zona_secao(df_2022)
 
@@ -243,10 +242,23 @@ class UrnasCriticasAnalysis:
         if "NR_ZONA" in df_2022.columns and "zona" not in df_2022.columns:
             df_2022 = df_2022.rename(columns={"NR_ZONA": "zona", "NR_SECAO": "secao"})
 
+        if "modelo" not in df_2022.columns and "MODELO_URNA" in df_2022.columns:
+            df_2022 = df_2022.rename(columns={"MODELO_URNA": "modelo"})
+
         if prefiltered:
             df_criticas = df_completas.copy()
         else:
-            if isinstance(self.status_filter, str) or self.status_filter is None:
+            if self.status_filter == FILTER_CONTINGENCIA:
+                # Urnas que passaram por procedimento de contingência (troca de urna).
+                if "EH_URNA_CONTINGENCIA" in df_completas.columns:
+                    df_criticas = df_completas[
+                        df_completas["EH_URNA_CONTINGENCIA"] == True  # noqa: E712
+                    ].copy()
+                else:
+                    # Fallback: dataset não possui a coluna dedicada, mantém apenas
+                    # as seções com algum tipo de atraso/criticidade registrada.
+                    df_criticas = df_completas[df_completas["STATUS"] > 0].copy()
+            elif isinstance(self.status_filter, str) or self.status_filter is None:
                 df_criticas = df_completas[df_completas["STATUS"] > 0].copy()
             else:
                 df_criticas = df_completas[df_completas["STATUS"] == self.status_filter].copy()
@@ -259,9 +271,23 @@ class UrnasCriticasAnalysis:
         if "NR_ZONA" not in df_criticas.columns or "NR_SECAO" not in df_criticas.columns:
             raise KeyError("Colunas 'NR_ZONA' ou 'NR_SECAO' não encontradas em df_criticas.")
 
+        # Em seções de contingência há 2 registros para a mesma (zona, secao) —
+        # a urna original e a que assumiu o atendimento. Sem esse ordenamento,
+        # o drop_duplicates abaixo podia manter arbitrariamente o registro com
+        # "modelo" vazio (urna que não chegou a registrar votos), fazendo o
+        # Prontuário exibir "Não identificado" mesmo quando o modelo real da
+        # urna de contingência era conhecido (visível no bloco de contingência).
+        def _priorizar_modelo_valido(df: pd.DataFrame) -> pd.DataFrame:
+            modelo_valido = df["modelo"].notna() & (df["modelo"].astype(str).str.strip() != "")
+            return (
+                df.assign(_modelo_valido=modelo_valido)
+                .sort_values("_modelo_valido", ascending=False)
+                .drop_duplicates(subset=["zona", "secao"])
+                .drop(columns="_modelo_valido")
+            )
+
         df_modelo_secao = (
-            df_2022[["zona", "secao", "modelo"]]
-            .drop_duplicates(subset=["zona", "secao"])
+            _priorizar_modelo_valido(df_2022[["zona", "secao", "modelo"]])
             .rename(columns={"zona": "NR_ZONA", "secao": "NR_SECAO"})
         )
         df_criticas = df_criticas.merge(
@@ -275,7 +301,7 @@ class UrnasCriticasAnalysis:
         df_log = df_2022[cols_available].merge(zs, on=["zona", "secao"], how="inner")
 
         df_criticas_urnas = (
-            df_log.drop_duplicates(subset=["zona", "secao"])[["zona", "secao", "modelo"]]
+            _priorizar_modelo_valido(df_log)[["zona", "secao", "modelo"]]
             .reset_index(drop=True)
         )
 
@@ -330,37 +356,46 @@ class UrnasCriticasAnalysis:
     def get_bio_failure_rates(self) -> dict:
         rates = []
         for m in URN_MODELS:
-            vm    = self.voters[m]
+            vm = self.voters[m]
+            if "bio_solicitada" not in vm.columns or "n_falhas_bio" not in vm.columns:
+                rates.append(0.0)
+                continue
             bio_m = vm[vm["bio_solicitada"] == True]
             taxa  = (bio_m["n_falhas_bio"] > 0).sum() / len(bio_m) if len(bio_m) else 0
             rates.append(taxa)
         return {"models": URN_MODELS, "rates": rates}
 
-    def get_queue_times(self) -> dict:
+    def _get_mean_std_by_model(self, col: str) -> dict:
+        """
+        Helper interno — calcula média e desvio padrão de `col` por modelo,
+        filtrando valores > 0. Refatoração comum a get_queue_times,
+        get_auth_duration e get_inactivity_times (antes três blocos
+        praticamente idênticos mudando só o nome da coluna).
+        """
         means, stds = [], []
         for m in URN_MODELS:
-            d = self.voters[m][self.voters[m]["t_fila_s"] > 0]["t_fila_s"]
+            vm = self.voters[m]
+            if col not in vm.columns:
+                means.append(0.0)
+                stds.append(0.0)
+                continue
+            d = vm[vm[col] > 0][col]
             means.append(float(d.mean()) if len(d) else 0.0)
             stds.append(float(d.std())  if len(d) else 0.0)
         return {"models": URN_MODELS, "means": means, "stds": stds}
+
+    def get_queue_times(self) -> dict:
+        return self._get_mean_std_by_model("t_fila_s")
 
     def get_auth_duration(self) -> dict:
-        means, stds = [], []
-        for m in URN_MODELS:
-            d = self.voters[m][self.voters[m]["t_habilitacao_s"] > 0]["t_habilitacao_s"]
-            means.append(float(d.mean()) if len(d) else 0.0)
-            stds.append(float(d.std())  if len(d) else 0.0)
-        return {"models": URN_MODELS, "means": means, "stds": stds}
+        return self._get_mean_std_by_model("t_habilitacao_s")
 
     def get_inactivity_times(self) -> dict:
-        means, stds = [], []
-        for m in URN_MODELS:
-            d = self.voters[m][self.voters[m]["t_inatividade_s"] > 0]["t_inatividade_s"]
-            means.append(float(d.mean()) if len(d) else 0.0)
-            stds.append(float(d.std())  if len(d) else 0.0)
-        return {"models": URN_MODELS, "means": means, "stds": stds}
+        return self._get_mean_std_by_model("t_inatividade_s")
 
     def get_invalid_keys(self) -> dict:
+        if "n_teclas_inv" not in self.df_log.columns:
+            return {"models": URN_MODELS, "proportions": [0.0] * len(URN_MODELS)}
         total_kp = self.df_log["n_teclas_inv"].sum()
         props = [
             self.voters[m][self.voters[m]["n_teclas_inv"] > 0]["n_teclas_inv"].sum() / total_kp
