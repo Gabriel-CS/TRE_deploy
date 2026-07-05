@@ -306,8 +306,18 @@ def _render_falhas_biometricas(analise) -> None:
         # Donut com representatividade das falhas no total
         _rows = []
         total_falhas_geral = 0
+        # Nem todo dataset traz as colunas de biometria no log consolidado —
+        # o filtro de contingência, por exemplo, pode usar um arquivo sem
+        # 'bio_solicitada'/'n_falhas_bio'. Sem essa checagem, o acesso direto
+        # a essas colunas gerava KeyError e derrubava a aba inteira.
+        bio_cols_ausentes = False
         for i, m in enumerate(URN_MODELS):
             vm = analise.voters[m]
+            if "bio_solicitada" not in vm.columns or "n_falhas_bio" not in vm.columns:
+                bio_cols_ausentes = True
+                _rows.append((OKABE_ITO[i], m, "0", "0", 0, 0))
+                del vm
+                continue
             bio_m = vm[vm["bio_solicitada"] == True]
             n_sol = len(bio_m)
             falhas = int((bio_m["n_falhas_bio"] > 0).sum())
@@ -333,6 +343,11 @@ def _render_falhas_biometricas(analise) -> None:
             )
             st.plotly_chart(fig, use_container_width=True)
             del fig, df_falhas
+        elif bio_cols_ausentes:
+            st.info(
+                "Dados de biometria (solicitação/falhas) não estão disponíveis "
+                "para o filtro selecionado."
+            )
 
     del bio
     gc.collect()
@@ -399,7 +414,7 @@ def _render_teclas_indevidas(analise) -> None:
     )
 
     inv_keys = analise.get_invalid_keys()
-    total_kp = analise.df_log["n_teclas_inv"].sum()
+    total_kp = analise.df_log["n_teclas_inv"].sum() if "n_teclas_inv" in analise.df_log.columns else 0
     col1, col2 = st.columns([3, 2])
 
     with col1:
@@ -421,6 +436,10 @@ def _render_teclas_indevidas(analise) -> None:
         total_kp_int = int(total_kp)
         for i, m in enumerate(URN_MODELS):
             vm = analise.voters[m]
+            if "n_teclas_inv" not in vm.columns:
+                _rows.append((OKABE_ITO[i], m, "0", f"{total_kp_int:,}", 0, total_kp_int))
+                del vm
+                continue
             qtd = int(vm[vm["n_teclas_inv"] > 0]["n_teclas_inv"].sum())
             _rows.append((OKABE_ITO[i], m, f"{qtd:,}", f"{total_kp_int:,}", qtd, total_kp_int))
             del vm
@@ -444,6 +463,11 @@ def _render_teclas_indevidas(analise) -> None:
             )
             st.plotly_chart(fig, use_container_width=True)
             del fig, df_teclas
+        elif "n_teclas_inv" not in analise.df_log.columns:
+            st.info(
+                "Dados de teclas indevidas não estão disponíveis para o "
+                "filtro selecionado."
+            )
 
     del inv_keys, total_kp
     gc.collect()
