@@ -1,8 +1,8 @@
 import gc
 import os
-import re
+import time
 
-import requests
+import gdown
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as _components
@@ -451,57 +451,77 @@ _DRIVE_FILES: dict[str, str] = {
 }
 
 
+def _is_valid_download(local_path: str) -> bool:
+    """
+    Confirma que o arquivo baixado é real e não uma página de erro/aviso do
+    Drive (quota excedida, permissão negada, tela de vírus não reconhecida
+    etc.) salva por engano com extensão .csv/.zip. Verifica tamanho mínimo e,
+    para não-zip, que o conteúdo não começa com marcação HTML.
+    """
+    if not os.path.exists(local_path) or os.path.getsize(local_path) == 0:
+        return False
+    if local_path.endswith(".zip"):
+        import zipfile
+        return zipfile.is_zipfile(local_path)
+    with open(local_path, "rb") as f:
+        head = f.read(512).lstrip().lower()
+    return not head.startswith(b"<!doctype") and not head.startswith(b"<html")
+
+
 def _download_file(local_path: str, file_id: str) -> None:
     """
-    Baixa um único arquivo do Google Drive usando requests puro.
-    Lida automaticamente com o cookie de confirmação que o Drive exige
-    para arquivos grandes (sem depender de nenhuma versão específica do gdown).
+    Baixa um único arquivo do Google Drive via gdown, que já lida
+    corretamente com a tela de confirmação de vírus/tamanho do Drive
+    (diferentes formatos, incluindo os mais recentes baseados em cookie),
+    ao contrário de um scraping manual com regex fixo.
     """
-    if os.path.exists(local_path):
+    if os.path.exists(local_path) and _is_valid_download(local_path):
         return
+
+    # Se existir um arquivo inválido (ex.: HTML de erro salvo em tentativa
+    # anterior), remove antes de tentar de novo.
+    if os.path.exists(local_path):
+        os.remove(local_path)
+
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
-    session = requests.Session()
-    url     = "https://drive.google.com/uc?export=download"
+    ultima_excecao: Exception | None = None
+    for tentativa in range(1, 4):  # até 3 tentativas — cobre falhas transitórias/rate limit
+        try:
+            gdown.download(id=file_id, output=local_path, quiet=True, fuzzy=True)
+            if _is_valid_download(local_path):
+                return
+            raise RuntimeError(
+                "conteúdo baixado não parece ser o arquivo esperado "
+                "(possível página de erro/quota do Google Drive)"
+            )
+        except Exception as exc:  # noqa: BLE001 — queremos tentar de novo e reportar no fim
+            ultima_excecao = exc
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            time.sleep(2 * tentativa)  # backoff simples entre tentativas
 
-    # Primeira requisição — pode retornar página de confirmação de vírus
-    resp = session.get(url, params={"id": file_id}, stream=True, timeout=60)
-    resp.raise_for_status()
-
-    # Se o Drive devolveu HTML (confirmação), extrai o token e refaz a requisição
-    content_type = resp.headers.get("Content-Type", "")
-    if "text/html" in content_type:
-        # Extrai o token do campo confirm= na página HTML
-        token_match = re.search(r'confirm=([0-9A-Za-z_\-]+)', resp.text)
-        if token_match:
-            token = token_match.group(1)
-        else:
-            # Fallback: token fixo que o Drive aceita quando não há outro
-            token = "t"
-        resp = session.get(
-            url,
-            params={"id": file_id, "confirm": token},
-            stream=True,
-            timeout=120,
-        )
-        resp.raise_for_status()
-
-    # Grava em disco em chunks para não estourar memória
-    with open(local_path, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=1024 * 1024):  # 1 MB
-            if chunk:
-                f.write(chunk)
+    raise RuntimeError(f"falha após 3 tentativas ({ultima_excecao})") from ultima_excecao
 
 
 @st.cache_resource(show_spinner=False)
-def _download_and_extract_data():
+def _download_and_extract_data() -> list[str]:
     """
-    Baixa sob demanda apenas os arquivos ainda ausentes.
+    Baixa sob demanda apenas os arquivos ainda ausentes/inválidos.
     Cada arquivo é baixado diretamente ao seu caminho final — sem zip global.
+
+    IMPORTANTE: esta função NUNCA chama st.stop() — funções decoradas com
+    @st.cache_resource devem sempre completar e *retornar* um valor. Parar a
+    execução no meio pode fazer o Streamlit tratar a chamada como concluída
+    sem cachear um resultado consistente, mascarando falhas em reruns
+    seguintes. Quem decide o que fazer com os erros é o chamador, fora do
+    cache.
     """
-    arquivos_faltando = [p for p in _DRIVE_FILES if not os.path.exists(p)]
+    arquivos_faltando = [
+        p for p in _DRIVE_FILES if not (os.path.exists(p) and _is_valid_download(p))
+    ]
     if not arquivos_faltando:
-        return
+        return []
 
     erros: list[str] = []
     with st.spinner("Preparando o sistema pela primeira vez. Isso pode levar alguns instantes…"):
@@ -513,17 +533,19 @@ def _download_and_extract_data():
             except Exception as exc:
                 erros.append(f"{nome}: {exc}")
 
-    if erros:
-        st.error(
-            "Falha ao baixar os seguintes arquivos:\n\n"
-            + "\n".join(f"- {e}" for e in erros)
-            + "\n\n**Verifique se todos os arquivos no Google Drive estão com permissão "
-            "'Qualquer pessoa com o link → Visualizador'.**"
-        )
-        st.stop()
+    return erros
 
 
-_download_and_extract_data()
+_erros_download = _download_and_extract_data()
+if _erros_download:
+    st.error(
+        "Falha ao baixar os seguintes arquivos do Google Drive:\n\n"
+        + "\n".join(f"- {e}" for e in _erros_download)
+        + "\n\n**Verifique se cada arquivo (não apenas a pasta) está com "
+        "permissão 'Qualquer pessoa com o link → Visualizador' e se o "
+        "arquivo não excedeu a cota diária de downloads do Drive.**"
+    )
+    st.stop()
 
 
 @st.cache_data(show_spinner=False, max_entries=2, ttl=300)
