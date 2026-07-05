@@ -3,11 +3,11 @@ import os
 import pandas as pd
 
 # Importação das constantes da nossa Single Source of Truth
-from src.analysis import FILTER_COM_ATRASO, FILTER_SOMENTE_CRITICAS
+from src.analysis import FILTER_COM_ATRASO, FILTER_CONTINGENCIA, FILTER_SOMENTE_CRITICAS
 
 # Configuração dos anos eleitorais e níveis de filtro (textuais e numéricos)
 YEARS = ["2018", "2022"]
-STATUS_LEVELS = [0, 1, 2, 3, 4, FILTER_SOMENTE_CRITICAS, FILTER_COM_ATRASO]
+STATUS_LEVELS = [0, 1, 2, 3, 4, FILTER_SOMENTE_CRITICAS, FILTER_COM_ATRASO, FILTER_CONTINGENCIA]
 
 
 def preprocess_geo_for_year(year: str) -> None:
@@ -23,9 +23,10 @@ def preprocess_geo_for_year(year: str) -> None:
 
     print(f"\nIniciando particionamento para o ano: {year}...")
     
-    # Otimização: tipagem forçada em memória durante a leitura
+    # Otimização: tipagem forçada em memória durante a leitura — Int16 é
+    # suficiente para STATUS (0–4) e evita upstream casts em callers.
     df_geo = pd.read_csv(geo_raw_path)
-    df_geo["STATUS"] = pd.to_numeric(df_geo["STATUS"], errors="coerce").fillna(0).astype(int)
+    df_geo["STATUS"] = pd.to_numeric(df_geo["STATUS"], errors="coerce").fillna(0).astype("int16")
 
     for status in STATUS_LEVELS:
         # 1. Definição da Máscara Booleana e do Sufixo do arquivo
@@ -35,6 +36,12 @@ def preprocess_geo_for_year(year: str) -> None:
         elif status == FILTER_COM_ATRASO:
             mask = df_geo["STATUS"] > 1
             suffix = "com_atraso"
+        elif status == FILTER_CONTINGENCIA:
+            if "EH_URNA_CONTINGENCIA" in df_geo.columns:
+                mask = df_geo["EH_URNA_CONTINGENCIA"].fillna(False).astype(bool)
+            else:
+                mask = df_geo["STATUS"] > 0
+            suffix = "contingencia"
         else:
             mask = df_geo["STATUS"] == status
             suffix = f"n{status}"
