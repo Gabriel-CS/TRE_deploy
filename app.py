@@ -5,7 +5,6 @@ import time
 import gdown
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as _components
 
 from src.analysis import (
     FILTER_COM_ATRASO,
@@ -673,7 +672,7 @@ with col_filtros:
                 f'</div>'
             )
 
-        _components.html(f"""<!DOCTYPE html>
+        st.iframe(f"""<!DOCTYPE html>
         <html><head>
         <style>
           *{{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif;}}
@@ -754,7 +753,7 @@ with col_filtros:
             }}
           }});
         </script>
-        </body></html>""", height=45, scrolling=False)
+        </body></html>""", height=45)
 
 # ── Validação e Carregamento de Dados ─────────────────────────────────────────
 cfg = DATA_CONFIG[ano_selecionado]
