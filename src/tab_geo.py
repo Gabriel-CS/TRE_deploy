@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+import json
 import os
 
 import folium
@@ -9,10 +10,13 @@ import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
+from branca.element import Element
 from folium.plugins import MarkerCluster
 from scipy.spatial import Voronoi
 from shapely.geometry import Polygon
 from streamlit_folium import st_folium
+
+from src.ui_components import info_card
 
 from src.analysis import (
     FILTER_COM_ATRASO,
@@ -30,6 +34,24 @@ _COR_STATUS: dict[int, str] = {
     4: "#EF4444",
 }
 _COR_NAO_CRITICO: str = "#94A3B8"
+
+
+def _fmt_min_sec_geo(total_seconds) -> str | None:
+    """
+    Formata segundos totais em horas/minutos para uso nos popups do mapa —
+    o tempo total de votação de uma seção facilmente passa de 1 hora, então
+    o formato inclui horas quando necessário (ex.: '10h32min').
+    """
+    if total_seconds is None or pd.isna(total_seconds) or total_seconds <= 0:
+        return None
+    total_seconds = int(total_seconds)
+    h, resto = divmod(total_seconds, 3600)
+    m, s = divmod(resto, 60)
+    if h > 0:
+        return f"{h}h{m:02d}min"
+    if m > 0:
+        return f"{m}min{s:02d}s"
+    return f"{s}s"
 
 SERGIPE_GEOJSON_URL: str = (
     "https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-28-mun.json"
@@ -50,7 +72,6 @@ MAPA_ALTURA_PX: int = 720
 def _carregar_geojson_sergipe() -> dict | None:
     if os.path.exists(SERGIPE_GEOJSON_LOCAL):
         try:
-            import json
             with open(SERGIPE_GEOJSON_LOCAL, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
@@ -206,6 +227,74 @@ def _kpi_card(cor: str, label: str, qtd: int) -> str:
     )
 
 
+def _voronoi_finite_polygons_2d(vor: Voronoi, radius: float) -> tuple[list[list[int]], np.ndarray]:
+    """
+    Reconstrói as regiões infinitas de um diagrama de Voronoi 2D em polígonos
+    finitos, estendendo as arestas abertas por uma distância `radius`.
+
+    Sem essa reconstrução, os pontos localizados na borda do conjunto (o que
+    inclui praticamente todo o contorno do estado) ficam com região infinita
+    e são descartados — é isso que produzia os "buracos" na tesselação.
+    Recorte (clip) contra o polígono do estado é aplicado depois, então o
+    valor de `radius` só precisa ser grande o suficiente para ultrapassar
+    os limites do estado.
+    """
+    if vor.points.shape[1] != 2:
+        raise ValueError("Requer um diagrama de Voronoi 2D.")
+
+    new_regions: list[list[int]] = []
+    new_vertices = vor.vertices.tolist()
+
+    center = vor.points.mean(axis=0)
+
+    # Mapeia, para cada ponto, quais arestas (ridges) ele compartilha com vizinhos
+    all_ridges: dict[int, list[tuple[int, int, int]]] = {}
+    for (p1, p2), (v1, v2) in zip(vor.ridge_points, vor.ridge_vertices):
+        all_ridges.setdefault(p1, []).append((p2, v1, v2))
+        all_ridges.setdefault(p2, []).append((p1, v1, v2))
+
+    for p1, region_idx in enumerate(vor.point_region):
+        vertices = vor.regions[region_idx]
+
+        if all(v >= 0 for v in vertices):
+            # Região já é finita
+            new_regions.append(vertices)
+            continue
+
+        # Região infinita: reconstrói mantendo os vértices finitos e
+        # "fechando" as arestas abertas na direção correta
+        ridges = all_ridges.get(p1, [])
+        new_region = [v for v in vertices if v >= 0]
+
+        for p2, v1, v2 in ridges:
+            if v2 < 0:
+                v1, v2 = v2, v1
+            if v1 >= 0:
+                continue  # aresta finita, já tratada
+
+            # Direção perpendicular à reta que une os dois pontos geradores
+            t = vor.points[p2] - vor.points[p1]
+            t = t / np.linalg.norm(t)
+            n = np.array([-t[1], t[0]])
+
+            midpoint = vor.points[[p1, p2]].mean(axis=0)
+            direction = np.sign(np.dot(midpoint - center, n)) * n
+            far_point = vor.vertices[v2] + direction * radius
+
+            new_region.append(len(new_vertices))
+            new_vertices.append(far_point.tolist())
+
+        # Ordena os vértices em sentido angular para formar um polígono válido
+        vs = np.asarray([new_vertices[v] for v in new_region])
+        c = vs.mean(axis=0)
+        angulos = np.arctan2(vs[:, 1] - c[1], vs[:, 0] - c[0])
+        new_region = list(np.array(new_region)[np.argsort(angulos)])
+
+        new_regions.append(new_region)
+
+    return new_regions, np.asarray(new_vertices)
+
+
 def _gerar_voronoi_layer(
     gdf_points: gpd.GeoDataFrame,
     geojson_se: dict,
@@ -213,38 +302,75 @@ def _gerar_voronoi_layer(
     if len(gdf_points) < 4:
         return None
 
-    np.random.seed(42)
-    coords = np.column_stack([gdf_points.geometry.x.values,
-                               gdf_points.geometry.y.values])
-    coords += np.random.uniform(-1e-5, 1e-5, coords.shape)
+    # ── Reprojeta para uma CRS métrica (UTM) antes de calcular o diagrama ──
+    # Calcular o Voronoi diretamente em graus (lat/lon) distorce as células:
+    # 1° de longitude equivale a uma distância bem menor que 1° de latitude
+    # nesta latitude, então as células ficam "esticadas" no eixo errado.
+    # Trabalhar em metros corrige a proporção real das áreas.
+    try:
+        crs_metrica = gdf_points.estimate_utm_crs()
+    except Exception:
+        # Fallback: UTM 24S cobre a faixa de longitude de Sergipe (36°-42°W)
+        crs_metrica = "EPSG:32724"
+    gdf_points_m = gdf_points.to_crs(crs_metrica)
+    gdf_se = gpd.GeoDataFrame.from_features(geojson_se["features"], crs="EPSG:4326")
+    gdf_se_m = gdf_se.to_crs(crs_metrica)
+
+    coords = np.column_stack([
+        gdf_points_m.geometry.x.values,
+        gdf_points_m.geometry.y.values,
+    ])
+
+    # Pequeno jitter (30 cm) para evitar pontos duplicados/colineares, que
+    # fazem o algoritmo de Voronoi falhar ou gerar células degeneradas
+    rng = np.random.default_rng(42)
+    coords = coords + rng.uniform(-0.3, 0.3, coords.shape)
 
     vor = Voronoi(coords)
 
+    # Raio de extensão bem maior que a extensão dos pontos, garantindo que
+    # todas as células (inclusive as da borda) sejam fechadas antes do clip
+    extensao = np.ptp(coords, axis=0).max()
+    raio_extensao = max(extensao * 4, 5000.0)
+
+    regioes, vertices = _voronoi_finite_polygons_2d(vor, radius=raio_extensao)
+
     polys: list[Polygon | None] = []
-    for region_idx in vor.point_region:
-        region = vor.regions[region_idx]
-        if -1 not in region and len(region) > 0:
-            polys.append(Polygon(vor.vertices[region]))
-        else:
+    for regiao in regioes:
+        try:
+            poly = Polygon(vertices[regiao])
+            if not poly.is_valid:
+                poly = poly.buffer(0)
+            polys.append(poly if not poly.is_empty else None)
+        except Exception:
             polys.append(None)
 
     gdf_vor = gpd.GeoDataFrame(
-        gdf_points.reset_index(drop=True),
+        gdf_points_m.reset_index(drop=True),
         geometry=polys,
-        crs="EPSG:4326",
+        crs=crs_metrica,
     ).dropna(subset=["geometry"])
 
     if gdf_vor.empty:
         return None
 
-    gdf_se = gpd.GeoDataFrame.from_features(geojson_se["features"], crs="EPSG:4326")
+    gdf_vor["geometry"] = gdf_vor["geometry"].apply(
+        lambda g: g if g.is_valid else g.buffer(0)
+    )
+    gdf_se_m["geometry"] = gdf_se_m["geometry"].apply(
+        lambda g: g if g.is_valid else g.buffer(0)
+    )
+
     try:
-        gdf_vor_clip = gpd.clip(gdf_vor, gdf_se)
+        gdf_vor_clip = gpd.clip(gdf_vor, gdf_se_m)
     except Exception:
         gdf_vor_clip = gdf_vor
 
     if gdf_vor_clip.empty:
         return None
+
+    # Volta para WGS84 (graus) para desenhar no folium
+    gdf_vor_clip = gdf_vor_clip.to_crs("EPSG:4326")
 
     cols_export = ["STATUS", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO", "geometry"]
     cols_export = [c for c in cols_export if c in gdf_vor_clip.columns]
@@ -343,7 +469,7 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
     if selected_munis:
         mask &= gdf_geo_status["NM_MUNICIPIO"].isin(selected_munis)
 
-    gdf_map = gdf_geo_status[mask]
+    gdf_map = gdf_geo_status[mask].copy() if isinstance(mask, pd.Series) else gdf_geo_status
 
     if gdf_map.empty:
         st.info("Nenhum ponto corresponde aos filtros selecionados.")
@@ -353,7 +479,7 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
         st.markdown("""
             <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;
                         letter-spacing:0.08em;color:var(--color-ink-soft);
-                        margin-bottom:0.6rem;margin-top:0.2rem;">⚙️ Ajustes Visuais</div>
+                        margin-bottom:0.6rem;margin-top:0.2rem;">Ajustes Visuais</div>
         """, unsafe_allow_html=True)
 
         estilo_mapa = st.selectbox(
@@ -365,8 +491,8 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
         )
 
         st.markdown("<div style='height:0.2rem;'></div>", unsafe_allow_html=True)
-        agrupar_pontos = st.checkbox("📍 Agrupar Locais", value=True, help="Agrupa marcadores próximos.")
-        exibir_voronoi = st.checkbox("🔷 Voronoi", value=False, key="_geo_voronoi_toggle")
+        agrupar_pontos = st.checkbox("Agrupar Locais", value=True, help="Agrupa marcadores próximos.")
+        exibir_voronoi = st.checkbox("Voronoi", value=False, key="_geo_voronoi_toggle")
 
         exibir_nao_criticos = (status_filter_local == 0)
 
@@ -383,6 +509,7 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
 
     with col_kpis:
         st.markdown("<div style='margin-top:1.8rem;'></div>", unsafe_allow_html=True)
+        info_card("Total de seções eleitorais filtradas, agrupadas por nível de criticidade.")
         if isinstance(status_filter_local, str):
             counts = gdf_map["STATUS"].value_counts().sort_index()
             cards_html = "".join(
@@ -407,6 +534,11 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
     st.markdown("<div style='height:1.0rem;'></div>", unsafe_allow_html=True)
 
     # ── Renderização do mapa Folium ──────────────────────────────────────────
+    info_card(
+        "Cada ponto no mapa representa uma seção eleitoral. A cor indica o nível de "
+        "criticidade (atraso no encerramento) e os agrupamentos/Voronoi ajudam a "
+        "identificar regiões com maior concentração de seções críticas."
+    )
     col_mapa = st.container()
     with col_mapa:
         dicionario_tiles = {
@@ -417,12 +549,9 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
         }
         tema_selecionado = dicionario_tiles.get(estilo_mapa, "CartoDB positron")
 
-        current_center = SERGIPE_CENTER
-        current_zoom   = SERGIPE_ZOOM
-
         m = folium.Map(
-            location=current_center,
-            zoom_start=current_zoom,
+            location=SERGIPE_CENTER,
+            zoom_start=SERGIPE_ZOOM,
             min_zoom=SERGIPE_MIN_ZOOM,
             max_zoom=18,
             max_bounds=True,
@@ -476,6 +605,14 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
         cols_agrupamento = ["NR_LATITUDE", "NR_LONGITUDE", "NM_LOCAL_VOTACAO", "NM_MUNICIPIO"]
         grupos_locais   = gdf_sorted.groupby(cols_agrupamento)
 
+        cols_lista = [
+            c for c in [
+                "NR_ZONA", "NR_SECAO", "STATUS", "modelo", "ATRASO_FILA_MINUTOS",
+                "HOUVE_TROCA_POR_CONTINGENCIA", "EH_URNA_CONTINGENCIA",
+                "TEMPO_SECAO_PRIMEIRO_ULTIMO_VOTO_SEG",
+            ] if c in gdf_sorted.columns
+        ]
+
         for (lat, lon, local, municipio), df_local in grupos_locais:
             status_maximo  = int(df_local["STATUS"].max())
             cor_principal  = _COR_STATUS.get(status_maximo, "#6c757d")
@@ -483,14 +620,101 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
             qtd_secoes     = len(df_local)
             texto_secoes   = "seções com atraso" if status_maximo > 1 else "seções sem atraso"
 
+            qtd_conting = 0
+            if "HOUVE_TROCA_POR_CONTINGENCIA" in cols_lista or "EH_URNA_CONTINGENCIA" in cols_lista:
+                mask_conting = pd.Series(False, index=df_local.index)
+                if "HOUVE_TROCA_POR_CONTINGENCIA" in df_local.columns:
+                    mask_conting |= df_local["HOUVE_TROCA_POR_CONTINGENCIA"].fillna(False).astype(bool)
+                if "EH_URNA_CONTINGENCIA" in df_local.columns:
+                    mask_conting |= df_local["EH_URNA_CONTINGENCIA"].fillna(False).astype(bool)
+                qtd_conting = int(mask_conting.sum())
+            selo_conting = (
+                f' · ↻ <b>{qtd_conting}</b> com contingência' if qtd_conting > 0 else ""
+            )
+
+            # Lista individual das seções/urnas do local de votação
+            itens_secoes_html = ""
+            if {"NR_ZONA", "NR_SECAO"}.issubset(cols_lista):
+                df_local_sorted = df_local.sort_values("STATUS", ascending=False)
+                tem_modelo   = "modelo" in cols_lista
+                tem_atraso   = "ATRASO_FILA_MINUTOS" in cols_lista
+                tem_conting  = ("HOUVE_TROCA_POR_CONTINGENCIA" in cols_lista) or ("EH_URNA_CONTINGENCIA" in cols_lista)
+                tem_t_voto   = "TEMPO_SECAO_PRIMEIRO_ULTIMO_VOTO_SEG" in cols_lista
+
+                cards = []
+                for _, row in df_local_sorted.iterrows():
+                    st_row  = int(row["STATUS"])
+                    cor_row = _COR_STATUS.get(st_row, "#6c757d")
+                    lbl_row = STATUS_LABELS.get(st_row, f"Status {st_row}")
+
+                    linha_modelo = ""
+                    if tem_modelo and pd.notna(row.get("modelo")):
+                        linha_modelo = (
+                            f'<div style="font-size:0.72rem;color:#475569;margin-top:2px;">'
+                            f'Modelo: <b>{row["modelo"]}</b></div>'
+                        )
+
+                    linha_atraso = ""
+                    if tem_atraso and pd.notna(row.get("ATRASO_FILA_MINUTOS")):
+                        linha_atraso = (
+                            f'<div style="font-size:0.72rem;color:#475569;margin-top:2px;">'
+                            f'Atraso: <b>{row["ATRASO_FILA_MINUTOS"]:.1f} min</b></div>'
+                        )
+
+                    # Indicação de urna de contingência (troca de urna na seção)
+                    linha_conting = ""
+                    if tem_conting:
+                        houve_troca = bool(row.get("HOUVE_TROCA_POR_CONTINGENCIA", False))
+                        eh_conting  = bool(row.get("EH_URNA_CONTINGENCIA", False))
+                        if houve_troca or eh_conting:
+                            linha_conting = (
+                                '<div style="font-size:0.72rem;color:#92400e;margin-top:2px;">'
+                                '↻ <b>Urna de contingência</b></div>'
+                            )
+
+                    # Tempo total de votação (1º voto -> último voto computado)
+                    linha_t_voto = ""
+                    if tem_t_voto:
+                        t_voto_fmt = _fmt_min_sec_geo(row.get("TEMPO_SECAO_PRIMEIRO_ULTIMO_VOTO_SEG"))
+                        if t_voto_fmt:
+                            linha_t_voto = (
+                                f'<div style="font-size:0.72rem;color:#475569;margin-top:2px;">'
+                                f'Tempo de votação: <b>{t_voto_fmt}</b></div>'
+                            )
+
+                    cards.append(
+                        f'<div style="padding:6px 8px;margin-top:6px;border-radius:6px;'
+                        f'background:#f8fafc;border:1px solid #e2e8f0;">'
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                        f'<span style="font-size:0.78rem;font-weight:600;color:#0f172a;">'
+                        f'Zona {row["NR_ZONA"]} | Seç. {row["NR_SECAO"]}</span>'
+                        f'<span style="font-size:0.65rem;font-weight:700;color:#fff;background:{cor_row};'
+                        f'padding:1px 6px;border-radius:10px;white-space:nowrap;">{lbl_row}</span>'
+                        f'</div>'
+                        f'{linha_modelo}'
+                        f'{linha_atraso}'
+                        f'{linha_conting}'
+                        f'{linha_t_voto}'
+                        f'</div>'
+                    )
+
+                itens_secoes_html = (
+                    '<div style="max-height:220px;overflow-y:auto;margin-top:6px;'
+                    'padding-top:4px;border-top:1px dashed #e2e8f0;">'
+                    + "".join(cards) +
+                    '</div>'
+                )
+                del df_local_sorted, cards
+
             popup_html = f"""
-                <div style="font-family:'Inter',sans-serif;min-width:200px;max-width:260px;">
+                <div style="font-family:'Inter',sans-serif;min-width:230px;max-width:300px;">
                     <div style="background:{cor_principal}12;border-left:3px solid {cor_principal};
                                 padding:8px 10px;border-radius:0 6px 6px 0;">
                         <div style="font-size:0.9rem;font-weight:700;color:#0f172a;
                                     margin-bottom:2px;line-height:1.2;">{local}</div>
                         <div style="font-size:0.75rem;color:#64748b;">
-                            {municipio} · <b>{qtd_secoes}</b> {texto_secoes}</div>
+                            {municipio} · <b>{qtd_secoes}</b> {texto_secoes}{selo_conting}</div>
+                        {itens_secoes_html}
                     </div>
                 </div>
             """
@@ -498,7 +722,7 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=5 + (status_maximo * 1.2),
-                popup=folium.Popup(popup_html, max_width=280),
+                popup=folium.Popup(popup_html, max_width=320),
                 tooltip=folium.Tooltip(
                     f"<b>{local}</b><br>"
                     f"<span style='color:{cor_principal};font-weight:500;'>{label_principal}</span><br>"
@@ -564,8 +788,8 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
         <script>
         (function() {{
             var MIN_ZOOM = {SERGIPE_MIN_ZOOM};
-            var CENTER   = [{current_center[0]}, {current_center[1]}];
-            var DEF_ZOOM = {current_zoom};
+            var CENTER   = [{SERGIPE_CENTER[0]}, {SERGIPE_CENTER[1]}];
+            var DEF_ZOOM = {SERGIPE_ZOOM};
             var BOUNDS   = L.latLngBounds(
                 L.latLng({SERGIPE_BOUNDS_SW[0]}, {SERGIPE_BOUNDS_SW[1]}),
                 L.latLng({SERGIPE_BOUNDS_NE[0]}, {SERGIPE_BOUNDS_NE[1]})
@@ -599,7 +823,6 @@ def render_tab_geo(ano: str, status_filter: str | int, estado_means: dict | None
         }})();
         </script>
         """
-        from branca.element import Element
         m.get_root().html.add_child(Element(guard_js))
 
         # Renderizar o mapa
