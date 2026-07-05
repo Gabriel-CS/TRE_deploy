@@ -443,7 +443,11 @@ _DRIVE_FILES: dict[str, str] = {
     "data/data_map/df_locais_votacao_consolidado_somente_criticos_2018.csv":        "1CZ_5WlFJWrlhz1EheFn40mGvg2NR9T4S",
     "data/data_map/df_locais_votacao_consolidado_com_atraso_2022.csv":              "1Rg4yQtcU3U102TBKP9VrGTWWasJ8NNi-",
     "data/data_map/df_locais_votacao_consolidado_com_atraso_2018.csv":              "1D3JrXU16gm1L8ps9W4tm8jA6S4MkS8yy",
-    "data/datasets/Tabela_Configuracoes.csv":                                       "1uOjGX6_R1_K-4CAzpUOpPLOCAXsPNeyi"
+
+    # datasets auxiliares
+    "data/datasets/Tabela_Configuracoes.csv":                                       "1uOjGX6_R1_K-4CAzpUOpPLOCAXsPNeyi",
+    "data/datasets/2022/urnas_completas_2022_1t.csv":                               "1qx96JudyV3QiVy7D89zZ3EE59ASL-jS_",
+    "data/datasets/2018/urnas_completas_2018_1t.csv":                               "1NQszIrXahky40obQZ6EnCofTQvopJUUj",
 }
 
 
