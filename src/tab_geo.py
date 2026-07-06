@@ -63,8 +63,8 @@ SERGIPE_GEOJSON_URL: str = (
 SERGIPE_GEOJSON_LOCAL: str = "data/geo/sergipe_municipios.geojson"
 
 SERGIPE_CENTER: tuple[float, float] = (-10.57, -37.38)
-SERGIPE_ZOOM: int = 8
-SERGIPE_MIN_ZOOM: int = 8
+SERGIPE_ZOOM: int = 7
+SERGIPE_MIN_ZOOM: int = 7
 SERGIPE_BOUNDS_SW: tuple[float, float] = (-11.55, -38.25)
 SERGIPE_BOUNDS_NE: tuple[float, float] = (-9.60, -36.35)
 
