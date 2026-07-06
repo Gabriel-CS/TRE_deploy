@@ -11,10 +11,6 @@ STATUS_LEVELS = [0, 1, 2, 3, 4, FILTER_SOMENTE_CRITICAS, FILTER_COM_ATRASO, FILT
 
 
 def preprocess_geo_for_year(year: str) -> None:
-    """
-    Gera arquivos geográficos particionados (shards) baseando-se nas regras de negócio.
-    Lê o dataset bruto de locais apenas uma vez para otimizar I/O.
-    """
     geo_raw_path = f"data/data_map/locais_criticos_{year}.csv"
     
     if not os.path.exists(geo_raw_path):
